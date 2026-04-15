@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="SLICE_Frontend/SLICE_Frontend.csproj" Id="ab769cee-6c75-45f4-a3bd-175b63c02e30" />
+  <Project Path="SLICE_Website/SLICE_Website.csproj" />
+</Solution>

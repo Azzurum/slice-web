@@ -1,0 +1,37 @@
+﻿<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="">🍕 S.L.I.C.E. Engine</a>
+    </div>
+</div>
+
+<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+
+<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
+    <nav class="flex-column">
+        
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                <span class="bi bi-box-seam-fill-nav-menu" aria-hidden="true"></span> 📦 Master Inventory
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="sales">
+                <span class="bi bi-cart-fill-nav-menu" aria-hidden="true"></span> 🛒 Sales Counter
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="logistics">
+                <span class="bi bi-truck-nav-menu" aria-hidden="true"></span> 🚚 Mesh Logistics
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="waste">
+                <span class="bi bi-trash-fill-nav-menu" aria-hidden="true"></span> 🗑️ Waste Tracker
+            </NavLink>
+        </div>
+
+    </nav>
+</div>

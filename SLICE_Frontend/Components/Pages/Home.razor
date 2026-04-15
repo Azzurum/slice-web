@@ -1,0 +1,66 @@
+﻿@page "/"
+@inject HttpClient Http
+
+<PageTitle>S.L.I.C.E. Inventory</PageTitle>
+
+<h1>📦 Live Master Inventory</h1>
+<hr />
+
+@* 1. SHOW A LOADING MESSAGE WHILE FETCHING DATA *@
+@if (inventoryList == null)
+{
+    <p><em>Loading live data from Azure SQL...</em></p>
+}
+@* 2. ONCE DATA ARRIVES, DRAW THE HTML TABLE *@
+else
+{
+    <table class="table table-striped table-hover">
+        <thead class="table-dark">
+            <tr>
+                <th>ID</th>
+                <th>Item Name</th>
+                <th>Category</th>
+                <th>Total Stock</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in inventoryList)
+            {
+                <tr>
+                    <td>@item.ItemID</td>
+                    <td><strong>@item.ItemName</strong></td>
+                    <td>@item.Category</td>
+                    <td>@item.TotalStock</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    // 3. THIS IS THE C# BRAIN OF THE PAGE
+    private MasterInventory[]? inventoryList;
+
+    // This method runs automatically the second the page loads
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            // We are calling the exact endpoint we tested earlier!
+            inventoryList = await Http.GetFromJsonAsync<MasterInventory[]>("api/inventory/branch/4");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Error fetching data: " + ex.Message);
+        }
+    }
+
+    // 4. A MINI-MODEL TO HOLD THE INCOMING JSON DATA
+    public class MasterInventory
+    {
+        public int ItemID { get; set; }
+        public string ItemName { get; set; } = string.Empty;
+        public string Category { get; set; } = string.Empty;
+        public decimal TotalStock { get; set; }
+    }
+}
