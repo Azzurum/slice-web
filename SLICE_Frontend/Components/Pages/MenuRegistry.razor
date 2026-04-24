@@ -1,0 +1,509 @@
+﻿@page "/menu"
+@using System.IO
+@inject HttpClient Http
+@inject IJSRuntime JS
+@inject Microsoft.AspNetCore.Hosting.IWebHostEnvironment Env
+
+<PageTitle>Menu Registry | S.L.I.C.E.</PageTitle>
+
+<div class="menu-container">
+    
+    @* ========================================== *@
+    @* LEFT COLUMN: MENU LIST (400px)             *@
+    @* ========================================== *@
+    <div class="left-col">
+        <h2 class="fw-black text-dark mb-1" style="font-size: 28px;">Menu Registry</h2>
+        <p class="text-light-custom mb-3" style="font-size: 14px;">Manage products and define recipes.</p>
+
+        @* Search & Add Bar *@
+        <div class="d-flex mb-3 align-items-center">
+            <div class="search-box flex-grow-1 me-2 shadow-sm d-flex align-items-center">
+                <i class="fa fa-search text-light-custom mx-3" style="font-size: 13px;"></i>
+                <input type="text" class="search-input flex-grow-1" placeholder="Search..." 
+                       @bind="SearchText" @bind:event="oninput" />
+            </div>
+            <button class="btn-add shadow-sm" @onclick="AddNewMenu" title="Add New Menu Item">
+                <i class="fa fa-plus" style="font-size: 14px;"></i>
+            </button>
+        </div>
+
+        @* Menu List Card *@
+        <div class="card-style flex-grow-1 overflow-auto">
+            @if (filteredMenuItems == null)
+            {
+                <div class="text-center mt-5 text-muted"><i class="fa fa-spinner fa-spin fs-3"></i></div>
+            }
+            else
+            {
+                @foreach (var item in filteredMenuItems)
+                {
+                    <div class="menu-item-row @(selectedMenuItem?.ProductID == item.ProductID ? "selected" : "")" 
+                         @onclick="() => SelectMenu(item)">
+                        <div class="flex-grow-1" style="opacity: @(item.IsAvailable ? "1.0" : "0.6"); padding: 5px 0;">
+                            <div class="fw-bold text-dark mb-1" style="font-size: 15px;">@item.DisplayName</div>
+                            <div class="d-flex align-items-center">
+                                <div class="fw-bold text-brand-orange" style="font-size: 13px; width: 70px;">@item.FormattedPrice</div>
+                                <span class="status-badge" style="background-color: @item.StatusColor">@item.StatusText</span>
+                            </div>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+
+    @* ========================================== *@
+    @* RIGHT COLUMN: DETAILS & RECIPE BUILDER     *@
+    @* ========================================== *@
+    <div class="right-col">
+        @if (selectedMenuItem != null)
+        {
+            <div class="card-style h-100 d-flex flex-column position-relative" style="padding: 35px;">
+                
+                @* Delete Button (Top Right - from previous logic) *@
+                @if (selectedMenuItem.ProductID > 0)
+                {
+                    <button class="btn-delete-menu" @onclick="DeleteMenu" title="Delete Product">
+                        <i class="fa fa-trash"></i>
+                    </button>
+                }
+
+                <h4 class="fw-black text-dark mb-3" style="font-size: 20px;">Product Details</h4>
+
+                @* Top Section: Image & Basic Info *@
+                <div class="d-flex mb-4">
+                    
+                    @* Image Upload Box *@
+                    <div class="d-flex align-items-center me-4">
+                        <div class="image-box text-center position-relative">
+                            @if (!string.IsNullOrEmpty(selectedMenuItem.ImagePath))
+                            {
+                                <img src="Images/Menu/@selectedMenuItem.ImagePath" class="product-img" />
+                            }
+                            else
+                            {
+                                <i class="fa fa-image text-muted" style="font-size: 30px; margin-top: 45px;"></i>
+                            }
+                            <InputFile OnChange="HandleImageUpload" class="file-upload-overlay" accept="image/*" />
+                        </div>
+                        <div class="ms-3">
+                            <button class="btn-upload-image position-relative" style="overflow: hidden;">
+                                Upload Image
+                                <InputFile OnChange="HandleImageUpload" class="file-upload-overlay" accept="image/*" />
+                            </button>
+                        </div>
+                    </div>
+
+                    @* Inputs *@
+                    <div class="flex-grow-1">
+                        <div class="mb-3">
+                            <label class="form-label fw-bold text-light-custom mb-1" style="font-size:11px;">PRODUCT NAME (Use '|' for categories, e.g., Pizza | Hawaiian)</label>
+                            <div class="input-wrapper">
+                                <input type="text" class="custom-input fw-bold text-dark" @bind="selectedMenuItem.ProductName" />
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col" style="max-width: 150px;">
+                                <label class="form-label fw-bold text-light-custom mb-1" style="font-size:11px;">BASE PRICE (₱)</label>
+                                <div class="input-wrapper">
+                                    <input type="number" step="0.01" class="custom-input text-brand-orange fw-black" @bind="selectedMenuItem.BasePrice" />
+                                </div>
+                            </div>
+                            <div class="col d-flex align-items-end pb-2 ms-3">
+                                <div>
+                                    <label class="form-label fw-bold text-light-custom mb-1 d-block" style="font-size:11px;">STATUS</label>
+                                    <div class="form-check mt-1">
+                                        <input class="form-check-input custom-checkbox" type="checkbox" id="statusCheck" @bind="selectedMenuItem.IsAvailable">
+                                        <label class="form-check-label fw-bold text-dark ms-1" for="statusCheck" style="font-size: 14px;">Available</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <hr style="background-color: #EEEEEE; height: 1px; border: none; margin: 10px 0 20px 0;" />
+
+                @* Middle Section: Recipe Builder *@
+                <div class="d-flex align-items-center mb-3">
+                    <i class="fa fa-book text-brand-orange me-2" style="font-size: 16px;"></i>
+                    <h5 class="fw-black text-dark mb-0" style="font-size: 18px;">Bill of Materials (Depletion Engine Recipe)</h5>
+                </div>
+
+                @* Recipe Table *@
+                <div class="recipe-table-container flex-grow-1 overflow-auto mb-3">
+                    <table class="table table-hover mb-0 align-middle w-100" style="border: 1px solid #EAECEE;">
+                        <thead class="sticky-top" style="background-color: #F8F9F9;">
+                            <tr>
+                                <th class="text-light-custom border-bottom" style="font-size: 11px; padding: 15px 10px;">RAW INGREDIENT</th>
+                                <th class="text-light-custom border-bottom text-center" style="font-size: 11px; width: 140px; padding: 15px 10px;">REQUIRED QTY</th>
+                                <th class="text-light-custom border-bottom" style="font-size: 11px; width: 80px; padding: 15px 10px;">UNIT</th>
+                                <th class="border-bottom" style="width: 60px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if(selectedMenuItem.Recipe != null)
+                            {
+                                @foreach (var ing in selectedMenuItem.Recipe)
+                                {
+                                    <tr style="height: 50px;">
+                                        <td class="fw-bold text-dark border-0 px-3">@ing.ItemName</td>
+                                        <td class="border-0 px-3 text-center">
+                                            <div class="qty-input-box mx-auto">
+                                                <input type="number" step="any" class="qty-input text-brand-blue" @bind="ing.RequiredQty" />
+                                            </div>
+                                        </td>
+                                        <td class="fw-bold text-light-custom border-0 px-3">@ing.BaseUnit</td>
+                                        <td class="border-0 text-center">
+                                            <button class="btn btn-link text-danger p-0" title="Remove from Recipe" @onclick="() => RemoveIngredient(ing)">
+                                                <i class="fa fa-trash" style="font-size: 14px; color: #E74C3C;"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                @* Add Ingredient Bar *@
+                <div class="add-ingredient-bar d-flex p-3 rounded mb-4 align-items-center">
+                    <select class="form-select custom-select flex-grow-1 me-3" @bind="selectedIngredientId">
+                        <option value="0" disabled selected>-- Select Raw Material --</option>
+                        @if(availableIngredients != null)
+                        {
+                            @foreach(var item in availableIngredients)
+                            {
+                                <option value="@item.ItemID">@item.ItemName (@item.BaseUnit)</option>
+                            }
+                        }
+                    </select>
+                    
+                    <input type="number" step="any" class="qty-input text-brand-blue me-3 text-center" 
+                           style="width: 120px; height: 40px; background: white; border: 1px solid #EAECEE; border-radius: 6px;" 
+                           @bind="ingredientQty" placeholder="0" />
+                           
+                    <button class="btn-add-recipe" @onclick="AddIngredient">ADD TO RECIPE</button>
+                </div>
+
+                @* Bottom Section: Save Button *@
+                <div class="d-flex justify-content-end">
+                    <button class="btn-save-menu" @onclick="SaveMenu" disabled="@isSaving">
+                        <div class="d-flex align-items-center justify-content-center">
+                            @if (isSaving) { <i class="fa fa-spinner fa-spin me-2"></i> }
+                            else { <i class="fa fa-save me-2"></i> }
+                            <span>SAVE MENU ITEM</span>
+                        </div>
+                    </button>
+                </div>
+
+            </div>
+        }
+        else
+        {
+            @* Empty State (Perfectly matched colors and text) *@
+            <div class="d-flex flex-column justify-content-center align-items-center h-100">
+                <i class="fa fa-list-alt mb-3" style="font-size: 60px; color: #EAECEE;"></i>
+                <h4 class="fw-black mb-1" style="color: #BDC3C7; font-size: 20px;">Select a menu item to build its recipe</h4>
+                <p style="color: #D0D3D4; font-size: 14px;">or click the + button to create a new product.</p>
+            </div>
+        }
+    </div>
+</div>
+
+<style>
+    :root {
+        --brand-green: #27AE60;
+        --brand-orange: #E67E22;
+        --brand-blue: #34495E;
+        --text-dark: #2C3E50;
+        --text-light: #95A5A6;
+        --bg-main: #F4F6F7;
+    }
+
+    .text-dark { color: var(--text-dark) !important; }
+    .text-light-custom { color: var(--text-light); }
+    .text-brand-orange { color: var(--brand-orange) !important; }
+    .text-brand-blue { color: var(--brand-blue) !important; }
+
+    .menu-container {
+        display: grid;
+        grid-template-columns: 400px 1fr;
+        height: calc(100vh - 120px); 
+        gap: 25px;
+        padding: 30px;
+        background-color: var(--bg-main);
+    }
+
+    .left-col, .right-col { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+
+    /* Custom WPF-style Card */
+    .card-style { 
+        background: white; 
+        border-radius: 16px; 
+        box-shadow: 0 4px 20px rgba(189, 195, 199, 0.15); 
+    }
+
+    /* Left Menu List Styles */
+    .search-box { background: white; border-radius: 8px; border: 1px solid #EAECEE; height: 42px; }
+    .search-input { border: none; outline: none; background: transparent; font-weight: 600; font-size: 14px; color: var(--text-dark); }
+    
+    .btn-add { background: var(--brand-blue); color: white; border: none; border-radius: 8px; width: 42px; height: 42px; cursor: pointer; }
+    
+    .menu-item-row { padding: 15px 20px; border-bottom: 1px solid #EAECEE; cursor: pointer; transition: background 0.2s; }
+    .menu-item-row:hover { background: #F8F9F9; }
+    .menu-item-row.selected { background: #E8F8F5; }
+    
+    .status-badge { color: white; font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 4px; }
+
+    /* Right Details Styles */
+    .image-box { width: 120px; height: 120px; background: #F4F6F7; border: 1px solid #BDC3C7; border-radius: 12px; overflow: hidden; }
+    .product-img { width: 100%; height: 100%; object-fit: cover; }
+    
+    .btn-upload-image { background: var(--brand-orange); color: white; border: none; border-radius: 6px; height: 35px; width: 120px; font-weight: bold; cursor: pointer; }
+    .file-upload-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 10; }
+
+    /* XAML Nested Input Box Style */
+    .input-wrapper { background: #F8F9F9; border: 1px solid #EAECEE; border-radius: 8px; height: 42px; display: flex; align-items: center; padding: 0 15px; }
+    .custom-input { background: transparent; border: none; outline: none; width: 100%; font-size: 15px; }
+
+    /* Custom Checkbox */
+    .custom-checkbox { transform: scale(1.1); cursor: pointer; }
+
+    /* Recipe Table Styles */
+    .qty-input-box { background: white; border: 1px solid #EAECEE; border-radius: 6px; height: 34px; width: 100px; display: flex; align-items: center; }
+    .qty-input { background: transparent; border: none; outline: none; width: 100%; text-align: center; font-weight: 900; font-size: 14px; }
+    .table-hover tbody tr:nth-of-type(odd) { background-color: transparent; }
+    .table-hover tbody tr:nth-of-type(even) { background-color: #FAFCFC; }
+
+    /* Bottom Bar */
+    .add-ingredient-bar { background: #F8F9F9; border: 1px solid #EAECEE; border-radius: 8px; }
+    .custom-select { height: 40px; font-size: 14px; font-weight: 600; border: 1px solid #EAECEE; }
+    .btn-add-recipe { background: var(--brand-blue); color: white; border: none; border-radius: 6px; padding: 0 20px; height: 40px; font-weight: bold; font-size: 12px; cursor: pointer; }
+
+    /* Save Button */
+    .btn-save-menu { background: var(--brand-green); color: white; border: none; border-radius: 8px; height: 50px; width: 200px; font-weight: bold; font-size: 15px; cursor: pointer; transition: 0.2s; }
+    .btn-save-menu:disabled { opacity: 0.7; cursor: not-allowed; }
+    .btn-delete-menu { position: absolute; top: 20px; right: 20px; background: transparent; border: none; color: #E74C3C; font-size: 20px; cursor: pointer; }
+</style>
+
+@code {
+    private List<MenuItem>? allMenuItems;
+    private List<MenuItem>? filteredMenuItems;
+    private List<MasterInventory>? availableIngredients;
+    
+    private MenuItem? selectedMenuItem;
+    
+    private string _searchText = "";
+    private string SearchText 
+    { 
+        get => _searchText; 
+        set { _searchText = value; FilterMenuItems(); } 
+    }
+
+    private int selectedIngredientId = 0;
+    private decimal ingredientQty = 0;
+    private bool isSaving = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        // 1. Fetch Menu Items
+        try { allMenuItems = await Http.GetFromJsonAsync<List<MenuItem>>("api/menu"); } catch { allMenuItems = new(); }
+        FilterMenuItems();
+
+        // 2. Fetch Master Ingredients for the dropdown
+        try { availableIngredients = await Http.GetFromJsonAsync<List<MasterInventory>>("api/inventory"); } catch { availableIngredients = new(); }
+    }
+
+    private void FilterMenuItems()
+    {
+        if (string.IsNullOrWhiteSpace(SearchText))
+            filteredMenuItems = allMenuItems;
+        else
+            filteredMenuItems = allMenuItems?.Where(m => m.ProductName.Contains(SearchText, StringComparison.OrdinalIgnoreCase)).ToList();
+    }
+
+    private async Task SelectMenu(MenuItem item)
+    {
+        selectedMenuItem = item;
+        
+        // Fetch Recipe dynamically
+        if (item.ProductID > 0)
+        {
+            try { selectedMenuItem.Recipe = await Http.GetFromJsonAsync<List<RecipeItemVM>>($"api/menu/{item.ProductID}/recipe"); }
+            catch { selectedMenuItem.Recipe = new(); }
+        }
+        else
+        {
+            selectedMenuItem.Recipe ??= new();
+        }
+
+        selectedIngredientId = 0;
+        ingredientQty = 0;
+    }
+
+    private void AddNewMenu()
+    {
+        selectedMenuItem = new MenuItem
+        {
+            ProductName = "New Item",
+            BasePrice = 0,
+            IsAvailable = true,
+            Recipe = new List<RecipeItemVM>()
+        };
+    }
+
+    private void AddIngredient()
+    {
+        if (selectedIngredientId == 0 || ingredientQty <= 0 || selectedMenuItem == null) return;
+
+        var ingredient = availableIngredients?.FirstOrDefault(i => i.ItemID == selectedIngredientId);
+        if (ingredient == null) return;
+
+        var existing = selectedMenuItem.Recipe.FirstOrDefault(r => r.IngredientID == ingredient.ItemID);
+        if (existing != null)
+        {
+            existing.RequiredQty += ingredientQty;
+        }
+        else
+        {
+            selectedMenuItem.Recipe.Add(new RecipeItemVM
+            {
+                IngredientID = ingredient.ItemID,
+                ItemName = ingredient.ItemName,
+                BaseUnit = ingredient.BaseUnit,
+                RequiredQty = ingredientQty
+            });
+        }
+
+        selectedIngredientId = 0;
+        ingredientQty = 0;
+    }
+
+    private void RemoveIngredient(RecipeItemVM item)
+    {
+        selectedMenuItem?.Recipe?.Remove(item);
+    }
+
+    private async Task HandleImageUpload(InputFileChangeEventArgs e)
+    {
+        if (selectedMenuItem == null) return;
+
+        var file = e.File;
+        // Generate a random filename so we don't accidentally overwrite existing images
+        var newFileName = Guid.NewGuid().ToString() + Path.GetExtension(file.Name);
+        
+        // Save the file to the wwwroot folder so the browser can display it
+        var path = Path.Combine(Env.WebRootPath, "Images", "Menu", newFileName);
+
+        // Ensure the directory exists
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+
+        await using FileStream fs = new(path, FileMode.Create);
+        await file.OpenReadStream(maxAllowedSize: 5120000).CopyToAsync(fs); // Max 5MB
+
+        // Update the model (It will save this filename to the DB when you click Save)
+        selectedMenuItem.ImagePath = newFileName;
+    }
+
+    private async Task SaveMenu()
+    {
+        if (selectedMenuItem == null || string.IsNullOrWhiteSpace(selectedMenuItem.ProductName))
+        {
+            await JS.InvokeVoidAsync("alert", "Product name is required.");
+            return;
+        }
+
+        isSaving = true;
+
+        try
+        {
+            HttpResponseMessage response;
+            if (selectedMenuItem.ProductID == 0)
+                response = await Http.PostAsJsonAsync("api/menu", selectedMenuItem);
+            else
+                response = await Http.PutAsJsonAsync("api/menu", selectedMenuItem);
+
+            if (response.IsSuccessStatusCode)
+            {
+                await JS.InvokeVoidAsync("alert", "Menu item saved successfully!");
+                await LoadData();
+                selectedMenuItem = null; // Close right panel
+            }
+            else
+            {
+                await JS.InvokeVoidAsync("alert", $"Failed to save: {await response.Content.ReadAsStringAsync()}");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Network error: {ex.Message}");
+        }
+
+        isSaving = false;
+    }
+
+    private async Task DeleteMenu()
+    {
+        if (selectedMenuItem == null || selectedMenuItem.ProductID == 0) return;
+
+        bool confirm = await JS.InvokeAsync<bool>("confirm", $"Are you sure you want to permanently delete {selectedMenuItem.ProductName}?");
+        if (!confirm) return;
+
+        try
+        {
+            var response = await Http.DeleteAsync($"api/menu/{selectedMenuItem.ProductID}");
+            if (response.IsSuccessStatusCode)
+            {
+                await JS.InvokeVoidAsync("alert", "Menu item deleted.");
+                await LoadData();
+                selectedMenuItem = null;
+            }
+            else
+            {
+                await JS.InvokeVoidAsync("alert", $"Failed to delete: {await response.Content.ReadAsStringAsync()}");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Error: {ex.Message}");
+        }
+    }
+
+    // --- VIEW MODELS FOR BLAZOR BINDING ---
+    public class MenuItem
+    {
+        public int ProductID { get; set; }
+        public string ProductName { get; set; } = string.Empty;
+        public decimal BasePrice { get; set; }
+        public bool IsAvailable { get; set; }
+        public string? ImagePath { get; set; }
+        public List<RecipeItemVM> Recipe { get; set; } = new();
+
+        public string DisplayName => ProductName.Contains("|") ? ProductName.Split('|')[1].Trim() : ProductName;
+        public string FormattedPrice => $"₱{BasePrice:N2}";
+        public string StatusText => IsAvailable ? "Available" : "Unavailable";
+        public string StatusColor => IsAvailable ? "#27AE60" : "#C0392B";
+    }
+
+    public class RecipeItemVM
+    {
+        public int IngredientID { get; set; }
+        public string ItemName { get; set; } = string.Empty;
+        public string BaseUnit { get; set; } = string.Empty;
+        public decimal RequiredQty { get; set; }
+    }
+
+    public class MasterInventory
+    {
+        public int ItemID { get; set; }
+        public string ItemName { get; set; } = string.Empty;
+        public string BaseUnit { get; set; } = string.Empty;
+    }
+}

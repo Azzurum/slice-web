@@ -1,0 +1,505 @@
+﻿@page "/global-inventory"
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Web
+@using SLICE_Frontend.Components.Dialogs
+@inject HttpClient Http
+@inject IJSRuntime JS
+@inject AuthenticationStateProvider AuthStateProvider
+
+<PageTitle>Central Warehouse | S.L.I.C.E.</PageTitle>
+
+<div class="warehouse-container">
+    
+    @* HEADER & CONTROLS *@
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        
+        <div class="me-4">
+            <h2 class="fw-black text-dark mb-1" style="font-size: 28px;">Central Warehouse</h2>
+            <p class="text-light-custom mb-0" style="font-size: 14px;">Oversee procurement, bulk storage, and raw materials</p>
+        </div>
+
+        <div class="d-flex align-items-center flex-wrap gap-2">
+            <div class="search-box shadow-sm d-flex align-items-center px-3 me-2">
+                <i class="fa fa-search text-light-custom" style="font-size: 13px;"></i>
+                <input type="text" class="search-input ms-2" placeholder="Search items..." 
+                       @bind="SearchText" @bind:event="oninput" />
+            </div>
+
+            <button class="btn-action bg-white text-muted shadow-sm" @onclick="LoadData" title="Refresh Data">
+                <i class="fa fa-refresh"></i>
+            </button>
+
+            <AuthorizeView Roles="Owner,Super-Admin,Logistics Admin">
+                <Authorized>
+                    <button class="btn-action btn-dispatch shadow-sm" @onclick="DispatchStock">
+                        <i class="fa fa-truck me-2"></i> DISPATCH
+                    </button>
+                    
+                    <button class="btn-action btn-buy shadow-sm" @onclick="BuyStock">
+                        <i class="fa fa-shopping-cart me-2"></i> BUY STOCK
+                    </button>
+
+                    <button class="btn-action btn-add shadow-sm" @onclick="AddNewItem">
+                        <i class="fa fa-plus me-2"></i> NEW ITEM
+                    </button>
+                </Authorized>
+            </AuthorizeView>
+        </div>
+    </div>
+
+    @* DATA GRID CARD *@
+    <div class="card-style flex-grow-1 d-flex flex-column overflow-hidden">
+        <div class="table-responsive flex-grow-1 p-3">
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="text-center mt-5 text-danger fw-bold">
+                    <i class="fa fa-exclamation-triangle me-2"></i> @errorMessage
+                </div>
+            }
+            else if (isLoading)
+            {
+                <div class="text-center mt-5 text-muted"><i class="fa fa-spinner fa-spin fs-2"></i></div>
+            }
+            else if (inventoryItems == null || !inventoryItems.Any())
+            {
+                <div class="text-center mt-5 text-muted fw-bold">No ingredients found.</div>
+            }
+            else
+            {
+                <table class="table align-middle mb-0 custom-table">
+                    <thead class="sticky-top bg-white" style="z-index: 10;">
+                        <tr>
+                            <th class="text-light-custom border-bottom pb-3" style="font-size: 11px; width: 60px;">NO.</th>
+                            <th class="text-light-custom border-bottom pb-3" style="font-size: 11px;">INGREDIENT</th>
+                            <th class="text-light-custom border-bottom pb-3" style="font-size: 11px; width: 140px;">CATEGORY</th>
+                            <th class="text-light-custom border-bottom pb-3" style="font-size: 11px; width: 140px;">GLOBAL STOCK</th>
+                            <th class="text-dark border-bottom pb-3" style="font-size: 11px; width: 90px;">BUY UNIT</th>
+                            <th class="text-dark border-bottom pb-3" style="font-size: 11px; width: 90px;">USE UNIT</th>
+                            
+                            <AuthorizeView Roles="Owner,Super-Admin,Logistics Admin">
+                                <Authorized>
+                                    <th class="text-light-custom border-bottom pb-3 text-center" style="font-size: 11px; width: 100px;">ACTIONS</th>
+                                </Authorized>
+                            </AuthorizeView>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (int i = 0; i < inventoryItems.Count; i++)
+                        {
+                            var index = i;
+                            var item = inventoryItems[i];
+                            bool isSelected = selectedIds.Contains(item.ItemID);
+
+                            <tr class="@(isSelected ? "row-selected" : "row-hover")" 
+                                style="height: 60px; cursor: pointer;"
+                                @onclick="(e) => HandleRowClick(e, item, index)">
+                                
+                                <td class="fw-black @(isSelected ? "text-dark" : "text-light-custom")">@item.DisplayNumber</td>
+                                
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="item-img-box me-3">
+                                            @if(!string.IsNullOrEmpty(item.ImagePath))
+                                            {
+                                                <img src="Images/Ingredients/@item.ImagePath" class="item-img" onerror="this.style.display='none'" />
+                                            }
+                                            else
+                                            {
+                                                <i class="fa fa-image text-muted opacity-50"></i>
+                                            }
+                                        </div>
+                                        <span class="fw-bold text-dark" style="font-size: 14px;">@item.ItemName</span>
+                                    </div>
+                                </td>
+
+                                <td>
+                                    <span class="category-badge">@item.Category</span>
+                                </td>
+
+                                <td>
+                                    <div class="d-flex align-items-end">
+                                        <span class="fw-black" style="font-size: 15px; color: @(item.TotalStock == 0 ? "var(--brand-red)" : "var(--brand-green)")">
+                                            @item.TotalStock.ToString("N0")
+                                        </span>
+                                        <span class="fw-bold text-light-custom ms-1 mb-1" style="font-size: 11px;">@item.BulkUnit</span>
+                                    </div>
+                                </td>
+
+                                <td class="text-dark fw-semibold">@item.BulkUnit</td>
+                                <td class="text-dark fw-semibold">@item.BaseUnit</td>
+
+                                <AuthorizeView Roles="Owner,Super-Admin,Logistics Admin">
+                                    <Authorized>
+                                        <td class="text-center">
+                                            <button class="btn-icon text-muted" title="Edit" 
+                                                    @onclick="() => EditItem(item)" 
+                                                    @onclick:stopPropagation="true">
+                                                <i class="fa fa-pencil"></i>
+                                            </button>
+                                            
+                                            <button class="btn-icon text-danger" title="Delete" 
+                                                    @onclick="() => DeleteItem(item)" 
+                                                    @onclick:stopPropagation="true">
+                                                <i class="fa fa-trash"></i>
+                                            </button>
+                                        </td>
+                                    </Authorized>
+                                </AuthorizeView>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+</div>
+
+@* DIALOG MODALS *@
+<AddIngredientWithImageModal @bind-IsVisible="showAddModal" 
+                             ExistingItem="itemToEdit" 
+                             OnSaved="@LoadData" />
+
+<RecordPurchaseModal @bind-IsVisible="showPurchaseModal" 
+                     AllIngredients="mappedIngredients" 
+                     CartItems="purchaseCartItems" 
+                     OnSaved="@HandlePurchaseSaved" />
+
+<DispatchModal @bind-IsVisible="showDispatchModal" 
+               ItemsToDispatch="dispatchItems" 
+               OnDispatch="@HandleDispatchSaved" />
+
+<style>
+    :root {
+        --brand-green: #27AE60;
+        --brand-orange: #E67E22;
+        --brand-blue: #34495E;
+        --brand-red: #E74C3C;
+        --text-dark: #2C3E50;
+        --text-light: #95A5A6;
+        --bg-main: #FDFBF7;
+    }
+
+    .text-dark { color: var(--text-dark) !important; }
+    .text-light-custom { color: var(--text-light) !important; }
+
+    .warehouse-container {
+        display: flex; flex-direction: column;
+        height: calc(100vh - 120px); 
+        padding: 30px;
+        background-color: var(--bg-main);
+    }
+
+    /* UI Elements */
+    .search-box { background: white; border-radius: 20px; height: 40px; width: 260px; }
+    .search-input { border: none; outline: none; background: transparent; font-weight: 600; font-size: 14px; color: var(--text-dark); width: 100%; }
+    
+    .btn-action { height: 40px; border: none; border-radius: 8px; font-weight: bold; font-size: 13px; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; padding: 0 15px; outline: none !important; box-shadow: none !important; }
+    .btn-action:hover { opacity: 0.85; }
+    
+    .btn-dispatch { background: var(--brand-orange); color: white; }
+    .btn-buy { background: var(--brand-blue); color: white; }
+    .btn-add { background: var(--brand-green); color: white; }
+
+    /* Table Styles */
+    .card-style { background: white; border-radius: 16px; box-shadow: 0 4px 20px rgba(189, 195, 199, 0.15); }
+    .custom-table { border-collapse: separate; border-spacing: 0; }
+    .custom-table tbody tr:nth-of-type(even):not(.row-selected) { background-color: #FAFCFC; }
+    .custom-table tbody tr { user-select: none; -webkit-user-select: none; }
+    .row-hover:hover { background-color: #F8F9F9 !important; }
+    
+    /* Row Selection Highlights */
+    .row-selected { background-color: #FFF5E8 !important; }
+    .row-selected td { border-top: 1px solid #FFE0B2; border-bottom: 1px solid #FFE0B2; }
+    .row-selected td:first-child { border-left: 1px solid #FFE0B2; border-top-left-radius: 6px; border-bottom-left-radius: 6px; }
+    .row-selected td:last-child { border-right: 1px solid #FFE0B2; border-top-right-radius: 6px; border-bottom-right-radius: 6px; }
+
+    /* Cell Images & Badges */
+    .item-img-box { width: 36px; height: 36px; border-radius: 6px; background: #F4F6F7; border: 1px solid #EAECEE; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+    .item-img { width: 100%; height: 100%; object-fit: cover; }
+    .category-badge { background: #F4F6F7; color: var(--text-dark); font-size: 11px; font-weight: bold; padding: 4px 10px; border-radius: 6px; display: inline-block; }
+
+    /* Action Buttons */
+    .btn-icon { width: 32px; height: 32px; border-radius: 6px; background: transparent; border: none; cursor: pointer; transition: 0.2s; display: inline-flex; align-items: center; justify-content: center; outline: none !important; }
+    .btn-icon:hover { background: #EAECEE; }
+</style>
+
+@code {
+    private List<MasterInventory>? allItems;
+    private List<MasterInventory>? inventoryItems;
+    private bool isLoading = true;
+    private string errorMessage = "";
+
+    // Selection Tracking
+    private HashSet<int> selectedIds = new();
+    private int? lastSelectedIndex = null;
+
+    private string _searchText = "";
+    private string SearchText 
+    { 
+        get => _searchText; 
+        set { _searchText = value; FilterData(); } 
+    }
+
+    // Modal Visibility Triggers
+    private bool showAddModal = false;
+    private bool showPurchaseModal = false;
+    private bool showDispatchModal = false;
+
+    // Modal Payload Data
+    private object? itemToEdit;
+    private List<RecordPurchaseModal.IngredientDto> mappedIngredients = new();
+    private List<RecordPurchaseModal.PurchaseItemDto> purchaseCartItems = new();
+    private List<DispatchModal.DispatchItemModel> dispatchItems = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        errorMessage = "";
+        selectedIds.Clear();
+        lastSelectedIndex = null;
+
+        try
+        {
+            allItems = await Http.GetFromJsonAsync<List<MasterInventory>>("api/inventory");
+            FilterData();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Network Error: {ex.Message}";
+        }
+        isLoading = false;
+    }
+
+    private void FilterData()
+    {
+        if (allItems == null) return;
+
+        var query = string.IsNullOrWhiteSpace(SearchText) 
+            ? allItems 
+            : allItems.Where(i => i.ItemName.Contains(SearchText, StringComparison.OrdinalIgnoreCase) || 
+                                  i.Category.Contains(SearchText, StringComparison.OrdinalIgnoreCase));
+
+        inventoryItems = query.ToList();
+
+        int count = 1;
+        foreach(var item in inventoryItems)
+        {
+            item.DisplayNumber = count++;
+        }
+    }
+
+    // Handles Shift+Click range selection and Ctrl+Click multi-selection
+    private void HandleRowClick(MouseEventArgs e, MasterInventory item, int currentIndex)
+    {
+        if (e.ShiftKey && lastSelectedIndex.HasValue && inventoryItems != null)
+        {
+            int start = Math.Min(lastSelectedIndex.Value, currentIndex);
+            int end = Math.Max(lastSelectedIndex.Value, currentIndex);
+            
+            selectedIds.Clear();
+            for (int i = start; i <= end; i++)
+            {
+                selectedIds.Add(inventoryItems[i].ItemID);
+            }
+        }
+        else if (e.CtrlKey || e.MetaKey)
+        {
+            if (selectedIds.Contains(item.ItemID))
+                selectedIds.Remove(item.ItemID);
+            else
+                selectedIds.Add(item.ItemID);
+                
+            lastSelectedIndex = currentIndex;
+        }
+        else
+        {
+            selectedIds.Clear();
+            selectedIds.Add(item.ItemID);
+            lastSelectedIndex = currentIndex;
+        }
+    }
+
+    // Opens Add/Edit Modal
+    private void AddNewItem()
+    {
+        itemToEdit = null;
+        showAddModal = true;
+    }
+
+    private void EditItem(MasterInventory item)
+    {
+        itemToEdit = item;
+        showAddModal = true;
+    }
+
+    // Prepares data and opens Purchase Modal
+    private void BuyStock()
+    {
+        if (allItems != null)
+        {
+            mappedIngredients = allItems.Select(i => new RecordPurchaseModal.IngredientDto 
+            { 
+                ItemID = i.ItemID, 
+                ItemName = i.ItemName 
+            }).ToList();
+            
+            var highlightedItems = allItems.Where(i => selectedIds.Contains(i.ItemID)).ToList();
+            
+            purchaseCartItems = highlightedItems.Select(i => new RecordPurchaseModal.PurchaseItemDto 
+            { 
+                ItemID = i.ItemID,
+                Quantity = 0,
+                UnitPrice = 0
+            }).ToList();
+        }
+        
+        showPurchaseModal = true;
+    }
+
+    // Prepares data and opens Dispatch Modal
+    private async Task DispatchStock()
+    {
+        if (allItems == null || selectedIds.Count == 0)
+        {
+            await JS.InvokeVoidAsync("alert", "Please select at least one item to dispatch.");
+            return;
+        }
+
+        var highlightedItems = allItems.Where(i => selectedIds.Contains(i.ItemID)).ToList();
+        
+        dispatchItems = highlightedItems.Select(i => new DispatchModal.DispatchItemModel
+        {
+            ItemID = i.ItemID,
+            ItemName = i.ItemName,
+            Unit = i.BulkUnit,
+            Quantity = 0
+        }).ToList();
+
+        showDispatchModal = true;
+    }
+
+    // Submits Procurement payload to API
+    private async Task HandlePurchaseSaved(RecordPurchaseModal.PurchasePayload payload)
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        int currentUserId = int.TryParse(authState.User.FindFirst("UserID")?.Value, out int parsedId) ? parsedId : 0;
+
+        if (currentUserId == 0)
+        {
+            await JS.InvokeVoidAsync("alert", "Error: Could not identify the logged-in user. Please re-login.");
+            return;
+        }
+
+        var requestData = new
+        {
+            SupplierName = payload.SupplierName,
+            PurchaseDate = payload.PurchaseDate,
+            GrandTotal = payload.GrandTotal,
+            UserID = currentUserId,
+            Items = payload.Items.Select(i => new { ItemID = i.ItemID, Quantity = i.Quantity, UnitPrice = i.UnitPrice }).ToList()
+        };
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/inventory/purchase", requestData);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                await JS.InvokeVoidAsync("alert", "Stock purchase recorded successfully! Warehouse inventory updated.");
+                await LoadData();
+            }
+            else
+            {
+                var errorMsg = await response.Content.ReadAsStringAsync();
+                await JS.InvokeVoidAsync("alert", $"Purchase Failed: {errorMsg}");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Network Error: {ex.Message}");
+        }
+    }
+
+    // Submits Dispatch payload to API
+    private async Task HandleDispatchSaved(DispatchModal.DispatchResultDto result)
+    {
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        int currentUserId = int.TryParse(authState.User.FindFirst("UserID")?.Value, out int parsedId) ? parsedId : 0;
+
+        if (currentUserId == 0)
+        {
+            await JS.InvokeVoidAsync("alert", "Error: Could not identify the logged-in user. Please re-login.");
+            return;
+        }
+
+        var requestPayload = new 
+        {
+            TargetBranchIDs = result.TargetBranchIDs,
+            Items = result.Items.Select(i => new { ItemID = i.ItemID, Quantity = i.Quantity }).ToList(),
+            SenderID = currentUserId 
+        };
+
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/logistics/dispatch", requestPayload);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                await JS.InvokeVoidAsync("alert", "Stock dispatched successfully!");
+                await LoadData(); 
+            }
+            else
+            {
+                var errorMsg = await response.Content.ReadAsStringAsync();
+                await JS.InvokeVoidAsync("alert", $"Dispatch Failed: {errorMsg}");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Network Error: {ex.Message}");
+        }
+    }
+
+    // Deletes item definition from Master Inventory
+    private async Task DeleteItem(MasterInventory item)
+    {
+        bool confirm = await JS.InvokeAsync<bool>("confirm", $"Are you sure you want to remove '{item.ItemName}'? This will permanently delete the item definition.");
+        if (!confirm) return;
+
+        try
+        {
+            var response = await Http.DeleteAsync($"api/inventory/{item.ItemID}");
+            if (response.IsSuccessStatusCode)
+            {
+                await LoadData();
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                await JS.InvokeVoidAsync("alert", error);
+            }
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Network error: {ex.Message}");
+        }
+    }
+
+    public class MasterInventory
+    {
+        public int ItemID { get; set; }
+        public int DisplayNumber { get; set; }
+        public string ItemName { get; set; } = string.Empty;
+        public string Category { get; set; } = string.Empty;
+        public string BulkUnit { get; set; } = string.Empty;
+        public string BaseUnit { get; set; } = string.Empty;
+        public decimal ConversionRatio { get; set; }
+        public decimal TotalStock { get; set; }
+        public string? ImagePath { get; set; }
+    }
+}

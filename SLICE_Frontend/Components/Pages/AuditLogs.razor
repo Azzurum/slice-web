@@ -1,0 +1,422 @@
+﻿@page "/audit"
+@using System.Text
+@using System.Threading
+@inject HttpClient Http
+@inject IJSRuntime JS
+
+<PageTitle>Audit Logs | S.L.I.C.E.</PageTitle>
+
+<div class="system-background">
+    
+    @* ROW 0: HEADER & WRAPPANEL (Margin="0,0,0,25") *@
+    <div class="header-grid">
+        
+        @* TITLE STACK *@
+        <div class="title-stack">
+            <div class="main-title">Audit Logs</div>
+            <div class="sub-title">Track, monitor, and trace every payment reference and user action.</div>
+        </div>
+
+        @* WRAPPANEL CONTROLS *@
+        <div class="wrap-panel">
+            
+            @* Date Picker Box (Margin="0,0,10,5") *@
+            <div class="date-box shadow-soft">
+                <i class="fa fa-calendar text-light-custom" style="margin: 0 10px 0 0; font-size: 14px;"></i>
+                
+                <input type="date" class="date-input" @bind="StartDate" @bind:event="onchange" title="From Date" />
+                
+                <span class="text-light-custom" style="margin: 0 5px;">to</span>
+                
+                <input type="date" class="date-input" @bind="EndDate" @bind:event="onchange" title="To Date" />
+                
+                <button class="btn-clear" @onclick="ClearDates" title="Clear Date Filter" style="margin: 0 0 0 5px;">
+                    <i class="fa fa-times" style="color: #E74C3C; font-size: 10px;"></i>
+                </button>
+            </div>
+
+            @* Search Box (Margin="0,0,10,5", Width="260") *@
+            <div class="search-box shadow-soft">
+                <i class="fa fa-search text-light-custom" style="width: 40px; text-align: center; font-size: 13px;"></i>
+                <input type="text" class="search-input" placeholder="Search by Reference or User..." 
+                       @bind="SearchText" @bind:event="oninput" />
+            </div>
+
+            @* Refresh Button (Margin="0,0,10,5", Width="40") *@
+            <button class="btn-refresh shadow-soft" @onclick="LoadLogsAsync" title="Refresh Data">
+                <i class="fa fa-refresh" style="font-size: 14px;"></i>
+            </button>
+
+            @* Export Button (Margin="0,0,0,5") *@
+            <button class="btn-export" @onclick="ExportLogsToReport" title="Export Audit Trail" disabled="@(!AuditList.Any())">
+                <i class="fa fa-file-text-o" style="margin: 0 8px 0 0; font-size: 14px;"></i>
+                <span>EXPORT REPORT</span>
+            </button>
+
+        </div>
+    </div>
+
+    @* ROW 1: DATAGRID CARD (Margin="10") *@
+    <div class="card-style shadow-hard flex-grow-1 d-flex flex-column overflow-hidden">
+        <div class="table-scroll-viewer flex-grow-1" style="padding: 10px;">
+            @if (isLoading)
+            {
+                <div class="loading-state">
+                    <i class="fa fa-spinner fa-spin text-light-custom" style="font-size: 32px; margin-bottom: 10px;"></i>
+                </div>
+            }
+            else
+            {
+                <table class="custom-datagrid">
+                    <thead>
+                        <tr>
+                            <th style="width: 130px;">TIME</th>
+                            <th style="width: 140px;">ACTION</th>
+                            <th style="width: 200px;">PERFORMED BY</th>
+                            <th style="width: 180px;">REFERENCE ID</th>
+                            <th style="width: auto;">LOG DESCRIPTION</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var log in AuditList)
+                        {
+                            <tr>
+                                @* TIME *@
+                                <td class="col-time">@log.LocalTimestamp.ToString("MMM dd, hh:mm tt")</td>
+
+                                @* ACTION BADGE *@
+                                <td>
+                                    <div class="action-badge" style="border-color: @log.BadgeColor;">
+                                        <span style="color: @log.BadgeColor;">@log.ActionType</span>
+                                    </div>
+                                </td>
+
+                                @* PERFORMED BY *@
+                                <td>
+                                    <div class="perf-by-name">@log.PerformedBy</div>
+                                    <div class="perf-by-branch">@log.BranchName</div>
+                                </td>
+
+                                @* REFERENCE ID (Exact WPF DataTriggers) *@
+                                <td>
+                                    @if (string.IsNullOrWhiteSpace(log.ReferenceNumber))
+                                    {
+                                        <div class="ref-fallback">SYSTEM_LOG</div>
+                                    }
+                                    else
+                                    {
+                                        <div class="ref-valid">@log.ReferenceNumber</div>
+                                    }
+                                </td>
+
+                                @* LOG DESCRIPTION *@
+                                <td class="col-desc">@log.Description</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+</div>
+
+@* Hidden JavaScript for File generation *@
+<script>
+    window.downloadFileFromBase64 = function (filename, base64, mimeType) {
+        var a = document.createElement('a');
+        a.href = "data:" + mimeType + ";base64," + base64;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
+</script>
+
+<style>
+    /* BASE SETTINGS (Background="#FDFBF7" FontFamily="Segoe UI") */
+    .system-background {
+        background-color: #FDFBF7;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        padding: 30px;
+        height: calc(100vh - 60px);
+        display: flex;
+        flex-direction: column;
+    }
+
+    .text-light-custom { color: #95A5A6; }
+
+    /* CARD & SHADOWS */
+    .card-style { background: white; border-radius: 12px; }
+    /* BlurRadius="15" Color="#BDC3C7" ShadowDepth="3" Opacity="0.2" */
+    .shadow-hard { box-shadow: 0 3px 15px rgba(189, 195, 199, 0.2); }
+    /* BlurRadius="10" Color="#BDC3C7" ShadowDepth="1" Opacity="0.2" */
+    .shadow-soft { box-shadow: 0 1px 10px rgba(189, 195, 199, 0.2); }
+
+    /* ROW 0: HEADER (Margin="0,0,0,25") */
+    .header-grid { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
+    .title-stack { display: flex; flex-direction: column; justify-content: center; }
+    .main-title { font-size: 28px; font-weight: 900; color: #2C3E50; } /* FontWeight="Black" */
+    .sub-title { font-size: 14px; font-weight: 400; color: #95A5A6; margin-top: 2px; }
+    
+    /* WRAPPANEL */
+    .wrap-panel { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; }
+
+    /* DATE PICKER BOX (CornerRadius="8", Height="40", Padding="10,0", Margin="0,0,10,5") */
+    .date-box {
+        background: white; border-radius: 8px; height: 40px; padding: 0 10px; margin: 0 10px 5px 0;
+        display: flex; align-items: center;
+    }
+    .date-input { border: none; outline: none; background: transparent; font-family: 'Segoe UI'; font-size: 13px; color: #2C3E50; width: 110px; }
+    .btn-clear { background: transparent; border: none; cursor: pointer; display: flex; align-items: center; padding: 0; }
+
+    /* SEARCH BOX (CornerRadius="20", Height="40", Width="260", Margin="0,0,10,5") */
+    .search-box { 
+        background: white; border-radius: 20px; height: 40px; width: 260px; margin: 0 10px 5px 0; 
+        display: flex; align-items: center; 
+    }
+    .search-input { border: none; outline: none; background: transparent; font-size: 14px; color: #2C3E50; width: 100%; margin-right: 15px; }
+    .search-input::placeholder { color: #BDC3C7; font-weight: 600; } /* Matches TextBlock fallback */
+
+    /* REFRESH BUTTON (Background="White", Width="40", Margin="0,0,10,5") */
+    .btn-refresh {
+        background: white; color: #95A5A6; border: none; border-radius: 8px;
+        height: 40px; width: 40px; margin: 0 10px 5px 0; cursor: pointer; transition: 0.2s;
+        display: flex; align-items: center; justify-content: center;
+    }
+    .btn-refresh:hover { opacity: 0.85; }
+
+    /* EXPORT BUTTON (Background="#27AE60", Padding="15,0", Height="40", Margin="0,0,0,5") */
+    .btn-export {
+        background: #27AE60; color: white; border: none; border-radius: 8px;
+        height: 40px; padding: 0 15px; font-weight: 700; margin: 0 0 5px 0; 
+        cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center;
+    }
+    .btn-export:hover:not(:disabled) { opacity: 0.85; }
+    .btn-export:disabled { background: #BDC3C7; cursor: not-allowed; }
+
+    /* DATAGRID (RowHeight="65", AlternatingRowBackground="#FAFCFC") */
+    .table-scroll-viewer { overflow-y: auto; overflow-x: hidden; }
+    .custom-datagrid { width: 100%; border-collapse: collapse; text-align: left; }
+    
+    .custom-datagrid th {
+        background-color: white; color: #95A5A6; font-size: 11px; font-weight: 700; /* Bold */
+        padding: 15px 10px; border-bottom: 1px solid #EAECEE; position: sticky; top: 0; z-index: 1;
+    }
+
+    .custom-datagrid tr { height: 65px; border-bottom: 1px solid #EAECEE; transition: background 0.1s; }
+    
+    /* Alternating Rows */
+    .custom-datagrid tbody tr:nth-child(even) { background-color: #FAFCFC; } 
+    
+    /* Hover Selection (IsSelected / MouseOver combo effect) */
+    .custom-datagrid tbody tr:hover { background-color: #F0F8FF; } 
+    .custom-datagrid tbody tr:hover td { color: #2C3E50; }
+    
+    .custom-datagrid td { padding: 0 10px; vertical-align: middle; }
+
+    /* EXACT CELL STYLES */
+    .col-time { color: #95A5A6; font-size: 13px; font-weight: 600; } /* SemiBold */
+    
+    .action-badge {
+        background-color: #FAFCFC; border-radius: 6px; border: 1.5px solid;
+        padding: 4px 10px; display: inline-flex; align-items: center; justify-content: center;
+        font-size: 11px; font-weight: 900; /* Black */
+    }
+
+    .perf-by-name { font-size: 14px; font-weight: 700; color: #2C3E50; } /* Bold */
+    .perf-by-branch { font-size: 11px; font-weight: 600; color: #2980B9; margin-top: 2px; } /* SemiBold */
+
+    .ref-valid { color: #3498DB; font-weight: 700; font-size: 12px; } /* Bold */
+    .ref-fallback { color: #BDC3C7; font-weight: 400; font-style: italic; font-size: 12px; }
+
+    .col-desc { color: #2C3E50; font-size: 14px; white-space: normal; line-height: 1.3; }
+
+    .loading-state { display: flex; flex-direction: column; justify-content: center; align-items: center; padding-top: 50px; }
+</style>
+
+@code {
+    private List<AuditEntry> AuditList = new();
+    private bool isLoading = true;
+
+    // Filters
+    private DateTime? _startDate;
+    private DateTime? _endDate;
+    private string _searchText = "";
+    
+    private CancellationTokenSource? _cts;
+
+    public string SearchText
+    {
+        get => _searchText;
+        set
+        {
+            if (_searchText != value)
+            {
+                _searchText = value;
+                TriggerDebouncedSearch();
+            }
+        }
+    }
+
+    public DateTime? StartDate
+    {
+        get => _startDate;
+        set { if (_startDate != value) { _startDate = value; _ = LoadLogsAsync(); } }
+    }
+
+    public DateTime? EndDate
+    {
+        get => _endDate;
+        set { if (_endDate != value) { _endDate = value; _ = LoadLogsAsync(); } }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadLogsAsync();
+    }
+
+    private void ClearDates()
+    {
+        _startDate = null;
+        _endDate = null;
+        _ = LoadLogsAsync();
+    }
+
+    private async void TriggerDebouncedSearch()
+    {
+        _cts?.Cancel();
+        _cts = new CancellationTokenSource();
+        var token = _cts.Token;
+
+        try
+        {
+            await Task.Delay(300, token);
+            if (!token.IsCancellationRequested)
+            {
+                await LoadLogsAsync();
+            }
+        }
+        catch (TaskCanceledException) { /* Ignored */ }
+    }
+
+    private async Task LoadLogsAsync()
+    {
+        isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            string url = $"api/audit?search={Uri.EscapeDataString(SearchText)}";
+            if (StartDate.HasValue) url += $"&startDate={StartDate.Value:yyyy-MM-dd}";
+            if (EndDate.HasValue) url += $"&endDate={EndDate.Value:yyyy-MM-dd}";
+
+            var result = await Http.GetFromJsonAsync<List<AuditEntry>>(url);
+            if (result != null)
+            {
+                AuditList = result;
+            }
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Error loading logs: {ex.Message}");
+        }
+
+        isLoading = false;
+        StateHasChanged();
+    }
+
+    private async Task ExportLogsToReport()
+    {
+        try
+        {
+            var html = new StringBuilder();
+            
+            // 1. Build the HTML Header and Inject exact SLICE CSS Styling
+            html.AppendLine("<!DOCTYPE html><html><head><meta charset='utf-8'><title>Audit Report | S.L.I.C.E.</title>");
+            html.AppendLine("<style>");
+            html.AppendLine("body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #FDFBF7; color: #2C3E50; padding: 40px; margin: 0; }");
+            html.AppendLine(".report-card { background: white; border-radius: 12px; padding: 40px; box-shadow: 0 4px 20px rgba(189, 195, 199, 0.2); max-width: 1200px; margin: 0 auto; }");
+            html.AppendLine(".header-grid { display: flex; justify-content: space-between; border-bottom: 2px solid #EAECEE; padding-bottom: 20px; margin-bottom: 30px; }");
+            html.AppendLine(".brand h1 { margin: 0; color: #C0392B; font-size: 32px; font-weight: 900; }");
+            html.AppendLine(".brand p { margin: 4px 0 0 0; color: #7F8C8D; font-size: 14px; font-weight: 600; }");
+            html.AppendLine(".meta-data { text-align: right; font-size: 13px; color: #95A5A6; line-height: 1.6; }");
+            html.AppendLine("table { width: 100%; border-collapse: collapse; text-align: left; }");
+            html.AppendLine("th { background-color: #F8F9F9; color: #95A5A6; font-size: 11px; font-weight: 700; padding: 15px 10px; border-bottom: 2px solid #EAECEE; }");
+            html.AppendLine("td { padding: 12px 10px; border-bottom: 1px solid #F4F6F6; font-size: 13px; vertical-align: middle; }");
+            html.AppendLine("tr:nth-child(even) { background-color: #FAFCFC; }");
+            html.AppendLine(".badge { border-radius: 6px; border: 1.5px solid; padding: 4px 10px; display: inline-flex; font-size: 11px; font-weight: 900; background-color: #FAFCFC; }");
+            html.AppendLine(".ref-valid { color: #3498DB; font-weight: bold; }");
+            html.AppendLine(".ref-sys { color: #BDC3C7; font-style: italic; }");
+            html.AppendLine("</style></head><body>");
+
+            html.AppendLine("<div class='report-card'>");
+            
+            // 2. Report Header Data
+            html.AppendLine("<div class='header-grid'>");
+            html.AppendLine("<div class='brand'><h1>S.L.I.C.E.</h1><p>Official System Audit Trail</p></div>");
+            html.AppendLine("<div class='meta-data'>");
+            html.AppendLine($"<div><strong>Generated:</strong> {DateTime.Now:MMM dd, yyyy - hh:mm tt}</div>");
+            html.AppendLine($"<div><strong>Total Records:</strong> {AuditList.Count}</div>");
+            html.AppendLine("</div></div>");
+
+            // 3. Build the Data Table
+            html.AppendLine("<table>");
+            html.AppendLine("<thead><tr><th style='width: 140px;'>TIME</th><th style='width: 130px;'>ACTION</th><th style='width: 180px;'>PERFORMED BY</th><th style='width: 180px;'>REFERENCE</th><th>DESCRIPTION</th></tr></thead>");
+            html.AppendLine("<tbody>");
+
+            foreach (var log in AuditList)
+            {
+                // Encode description so special characters don't break the HTML
+                string safeDesc = System.Net.WebUtility.HtmlEncode(log.Description);
+                string refDisplay = string.IsNullOrWhiteSpace(log.ReferenceNumber) ? "<span class='ref-sys'>SYSTEM_LOG</span>" : $"<span class='ref-valid'>{log.ReferenceNumber}</span>";
+                
+                html.AppendLine("<tr>");
+                html.AppendLine($"<td style='color:#7F8C8D; font-weight:600;'>{log.LocalTimestamp:MMM dd, hh:mm tt}</td>");
+                html.AppendLine($"<td><div class='badge' style='color:{log.BadgeColor}; border-color:{log.BadgeColor};'>{log.ActionType}</div></td>");
+                html.AppendLine($"<td><div style='color:#2C3E50; font-weight:700;'>{log.PerformedBy}</div><div style='color:#2980B9; font-size:11px; margin-top:2px;'>{log.BranchName}</div></td>");
+                html.AppendLine($"<td>{refDisplay}</td>");
+                html.AppendLine($"<td style='color:#2C3E50;'>{safeDesc}</td>");
+                html.AppendLine("</tr>");
+            }
+
+            html.AppendLine("</tbody></table>");
+            html.AppendLine("</div></body></html>");
+
+            // 4. Convert to Base64 and trigger download
+            var bytes = Encoding.UTF8.GetBytes(html.ToString());
+            var base64 = Convert.ToBase64String(bytes);
+            var filename = $"SLICE_Audit_Report_{DateTime.Now:yyyyMMdd}.html";
+
+            // Pass the exact mime type 'text/html' to the Javascript
+            await JS.InvokeVoidAsync("downloadFileFromBase64", filename, base64, "text/html");
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Failed to export report: {ex.Message}");
+        }
+    }
+
+    // Mapped UI model
+    public class AuditEntry
+    {
+        public DateTime Timestamp { get; set; }
+        public DateTime LocalTimestamp => Timestamp.AddHours(8); 
+        
+        public string ActivityType { get; set; } = string.Empty;
+        public string ActionType => ActivityType;
+        public string Description { get; set; } = string.Empty;
+        public string BranchName { get; set; } = string.Empty;
+        public string PerformedBy { get; set; } = string.Empty;
+        public string ReferenceNumber { get; set; } = string.Empty;
+
+        public string BadgeColor => ActivityType?.ToUpper() switch
+        {
+            "SALE" or "SHIPMENT" => "#27AE60",
+            "Z-READING" => "#8E44AD",
+            "SECURITY" => "#F39C12",
+            "WASTE" or "DELETE" => "#C0392B",
+            "LOGIN" or "UPDATE" => "#2980B9",
+            _ => "#95A5A6"
+        };
+    }
+}

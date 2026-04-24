@@ -1,0 +1,387 @@
+﻿@page "/settings"
+@inject HttpClient Http
+@inject IJSRuntime JS
+
+<PageTitle>System Settings | S.L.I.C.E.</PageTitle>
+
+<div class="system-background">
+
+    @* MAIN GRID (Margin="30") *@
+    <div class="main-grid">
+
+        @* ROW 0: HEADER (Margin="0,0,0,30") *@
+        <div class="header-grid">
+            <div class="title-stack">
+                <div class="title-row">
+                    <i class="fa fa-cogs title-icon"></i>
+                    <div class="main-title">System Settings</div>
+                </div>
+                <div class="sub-title">Manage enterprise branches and global operations network.</div>
+            </div>
+
+            @* TOTAL LOCATIONS CARD (Padding="20,10") *@
+            <div class="premium-card header-card">
+                <div class="header-card-content">
+                    <div class="header-icon-box">
+                        <i class="fa fa-map-marker header-icon"></i>
+                    </div>
+                    <div class="header-text-stack">
+                        <div class="header-lbl">TOTAL LOCATIONS</div>
+                        <div class="header-val">@Branches.Count.ToString("D2")</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* ROW 1: CONTENT COLUMNS (2* to 1*) *@
+        <div class="content-grid">
+            
+            @* LEFT COLUMN: DATAGRID (Padding="25", Margin="0,0,20,0") *@
+            <div class="premium-card grid-card">
+                <div class="card-header-row">
+                    <i class="fa fa-building header-red-icon"></i>
+                    <div class="card-title">Active Branch Network</div>
+                </div>
+
+                <div class="table-scroll-viewer">
+                    @if (isLoading)
+                    {
+                        <div class="loading-state"><i class="fa fa-spinner fa-spin"></i></div>
+                    }
+                    else
+                    {
+                        <table class="custom-datagrid">
+                            <thead>
+                                <tr>
+                                    <th style="width: 60px;">ID</th>
+                                    <th style="width: 30%;">BRANCH NAME</th>
+                                    <th style="width: 45%;">LOCATION ADDRESS</th>
+                                    <th style="width: auto;">CONTACT NO.</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var branch in Branches)
+                                {
+                                    <tr class="@(SelectedBranch?.BranchID == branch.BranchID ? "row-selected" : "")" 
+                                        @onclick="() => SelectBranch(branch)">
+                                        <td class="col-id">@branch.BranchID</td>
+                                        <td class="col-name">@branch.BranchName</td>
+                                        <td class="col-loc">@branch.Location</td>
+                                        <td class="col-contact">@branch.ContactNumber</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+            </div>
+
+            @* RIGHT COLUMN: FORM (Padding="25") *@
+            <div class="premium-card form-card">
+                
+                <div class="card-header-row" style="margin-bottom: 25px;">
+                    <i class="fa fa-edit header-red-icon"></i>
+                    <div class="card-title">Branch Details</div>
+                </div>
+
+                <div class="form-stack">
+                    <div class="input-lbl">STORE NAME</div>
+                    <div class="input-border">
+                        <input type="text" class="modern-input" @bind="BranchName" @bind:event="oninput" />
+                    </div>
+
+                    <div class="input-lbl">FULL ADDRESS</div>
+                    <div class="input-border">
+                        <input type="text" class="modern-input" @bind="Location" @bind:event="oninput" />
+                    </div>
+
+                    <div class="input-lbl">CONTACT NUMBER</div>
+                    <div class="input-border" style="margin-bottom: 0;">
+                        <input type="text" class="modern-input" @bind="ContactNumber" @bind:event="oninput" />
+                    </div>
+                </div>
+
+                <div class="action-stack">
+                    @* SAVE BUTTON *@
+                    <button class="btn-save" @onclick="SaveBranch">
+                        <div class="btn-save-content">
+                            <i class="fa fa-save btn-save-icon"></i>
+                            <span>SAVE BRANCH</span>
+                        </div>
+                    </button>
+
+                    @* DELETE / CLEAR GRID *@
+                    <div class="action-sub-grid">
+                        <button class="btn-delete" @onclick="DeleteBranch">DELETE</button>
+                        <div class="action-spacer"></div>
+                        <button class="btn-clear" @onclick="ClearForm">CLEAR</button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* BASE SETTINGS */
+    .system-background {
+        background-color: #FDFBF7;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        height: calc(100vh - 60px);
+        overflow: hidden;
+    }
+
+    /* MAIN GRID (Margin="30") */
+    .main-grid {
+        margin: 30px;
+        display: flex;
+        flex-direction: column;
+        height: calc(100% - 60px);
+    }
+
+    /* PREMIUM CARD STYLE */
+    /* DropShadowEffect BlurRadius="20" Color="#D35400" ShadowDepth="4" Opacity="0.08" */
+    .premium-card {
+        background-color: white;
+        border-radius: 15px;
+        box-shadow: 0 4px 20px rgba(211, 84, 0, 0.08);
+    }
+
+    /* ROW 0: HEADER (Margin="0,0,0,30") */
+    .header-grid { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+    
+    .title-stack { display: flex; flex-direction: column; justify-content: center; }
+    .title-row { display: flex; align-items: center; margin-bottom: 5px; }
+    .title-icon { color: #E67E22; font-size: 24px; margin-right: 10px; }
+    .main-title { font-size: 28px; font-weight: 900; color: #2C1E16; } /* FontWeight="Black" */
+    .sub-title { font-size: 14px; font-weight: 400; color: #7F8C8D; margin-left: 34px; }
+
+    /* HEADER CARD (Background="{StaticResource CrustDark}") */
+    .header-card { background-color: #2C1E16; padding: 10px 20px; }
+    .header-card-content { display: flex; align-items: center; }
+    .header-icon-box { background-color: #3E2A1F; border-radius: 8px; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; margin-right: 15px; }
+    .header-icon { color: #E67E22; font-size: 18px; }
+    .header-text-stack { display: flex; flex-direction: column; justify-content: center; }
+    .header-lbl { font-size: 10px; font-weight: 700; color: #BDC3C7; } /* FontWeight="Bold" */
+    .header-val { font-size: 24px; font-weight: 900; color: white; line-height: 1; } /* FontWeight="Black" */
+
+    /* ROW 1: CONTENT COLUMNS (2* to 1*) */
+    .content-grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        flex-grow: 1;
+        overflow: hidden;
+    }
+
+    /* LEFT COLUMN: DATAGRID (Margin="0,0,20,0", Padding="25") */
+    .grid-card { margin-right: 20px; padding: 25px; display: flex; flex-direction: column; overflow: hidden; }
+    
+    .card-header-row { display: flex; align-items: center; margin-bottom: 20px; }
+    .header-red-icon { color: #E74C3C; font-size: 16px; margin-right: 10px; }
+    .card-title { font-size: 18px; font-weight: 900; color: #2C1E16; } /* FontWeight="Black" */
+
+    /* CUSTOM DATAGRID */
+    .table-scroll-viewer { overflow-y: auto; flex-grow: 1; }
+    .custom-datagrid { width: 100%; border-collapse: collapse; text-align: left; }
+    
+    .custom-datagrid th {
+        background-color: white; color: #7F8C8D; font-size: 12px; font-weight: 700; /* Bold */
+        padding: 0 0 15px 10px; border-bottom: 2px solid #FAD7A1; position: sticky; top: 0; z-index: 1;
+    }
+
+    /* RowHeight="55", AlternatingRowBackground="#FCF3EB" */
+    .custom-datagrid tr { height: 55px; cursor: pointer; transition: background 0.1s; }
+    .custom-datagrid tbody tr:nth-child(even) { background-color: #FCF3EB; }
+    .custom-datagrid td { padding: 0 10px; vertical-align: middle; border: none; }
+    
+    /* Selection Trigger (Background="#FDEBD0" Foreground="CrustDark") */
+    .custom-datagrid tbody tr.row-selected { background-color: #FDEBD0; }
+    
+    .col-id { color: #E67E22; font-weight: 700; } /* Bold */
+    .col-name { color: #2C1E16; font-weight: 600; } /* SemiBold */
+    .col-loc { color: #7F8C8D; font-weight: 400; }
+    .col-contact { color: #2C1E16; font-weight: 400; }
+
+    /* RIGHT COLUMN: FORM (Padding="25") */
+    .form-card { padding: 25px; display: flex; flex-direction: column; }
+    
+    .form-stack { flex-grow: 1; }
+    .input-lbl { color: #E67E22; font-weight: 700; font-size: 11px; margin: 0 0 5px 5px; } /* Bold */
+    
+    /* InputBorder Style */
+    .input-border {
+        background-color: #F8F9FA; border: 1.5px solid #EAECEE; border-radius: 8px;
+        height: 45px; margin-bottom: 20px; display: flex; align-items: center; padding: 0 10px;
+    }
+    
+    /* ModernInput Style */
+    .modern-input {
+        background: transparent; border: none; outline: none; width: 100%;
+        font-size: 14px; color: #2C1E16; font-family: 'Segoe UI';
+    }
+
+    .action-stack { margin-top: 20px; display: flex; flex-direction: column; }
+
+    /* SAVE BUTTON */
+    .btn-save {
+        background: linear-gradient(to bottom right, #E67E22, #D35400);
+        border: none; border-radius: 8px; height: 45px; cursor: pointer;
+        margin-bottom: 10px; transition: 0.2s;
+    }
+    .btn-save:hover { filter: brightness(1.1); }
+    .btn-save-content { display: flex; align-items: center; justify-content: center; }
+    .btn-save-icon { color: white; font-size: 14px; margin-right: 8px; }
+    .btn-save-content span { color: white; font-weight: 900; font-size: 13px; } /* Black */
+
+    /* ACTION SUB-GRID */
+    .action-sub-grid { display: grid; grid-template-columns: 1fr 10px 1fr; }
+    .action-spacer { width: 10px; }
+
+    .btn-delete {
+        background-color: #FEF5E7; border: 1px solid #FAD7A1; border-radius: 8px;
+        height: 40px; color: #E74C3C; font-weight: 700; font-size: 12px; cursor: pointer; transition: 0.2s;
+    }
+    .btn-delete:hover { filter: brightness(0.95); }
+
+    .btn-clear {
+        background-color: #F8F9FA; border: 1px solid #EAECEE; border-radius: 8px;
+        height: 40px; color: #7F8C8D; font-weight: 700; font-size: 12px; cursor: pointer; transition: 0.2s;
+    }
+    .btn-clear:hover { filter: brightness(0.95); }
+
+    .loading-state { text-align: center; margin-top: 50px; color: #7F8C8D; font-size: 24px; }
+</style>
+
+@code {
+    private List<Branch> Branches = new();
+    private Branch? SelectedBranch;
+    private bool isLoading = true;
+
+    // Form Binding
+    private string BranchName = "";
+    private string Location = "";
+    private string ContactNumber = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadBranches();
+    }
+
+    private async Task LoadBranches()
+    {
+        isLoading = true;
+        try
+        {
+            var list = await Http.GetFromJsonAsync<List<Branch>>("api/branch");
+            if (list != null) Branches = list;
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Error loading branches: {ex.Message}");
+        }
+        isLoading = false;
+        StateHasChanged();
+    }
+
+    private void SelectBranch(Branch branch)
+    {
+        SelectedBranch = branch;
+        BranchName = branch.BranchName;
+        Location = branch.Location;
+        ContactNumber = branch.ContactNumber;
+    }
+
+    private void ClearForm()
+    {
+        SelectedBranch = null;
+        BranchName = "";
+        Location = "";
+        ContactNumber = "";
+    }
+
+    private async Task SaveBranch()
+    {
+        if (string.IsNullOrWhiteSpace(BranchName) || string.IsNullOrWhiteSpace(Location))
+        {
+            await JS.InvokeVoidAsync("alert", "Branch Name and Location are required.");
+            return;
+        }
+
+        var branchData = new Branch
+        {
+            BranchID = SelectedBranch?.BranchID ?? 0,
+            BranchName = BranchName,
+            Location = Location,
+            ContactNumber = ContactNumber
+        };
+
+        try
+        {
+            HttpResponseMessage response;
+            if (SelectedBranch == null)
+            {
+                response = await Http.PostAsJsonAsync("api/branch", branchData);
+            }
+            else
+            {
+                response = await Http.PutAsJsonAsync($"api/branch/{SelectedBranch.BranchID}", branchData);
+            }
+
+            if (response.IsSuccessStatusCode)
+            {
+                await JS.InvokeVoidAsync("alert", "Branch saved successfully!");
+                await LoadBranches();
+                ClearForm();
+            }
+            else
+            {
+                await JS.InvokeVoidAsync("alert", "Error saving branch.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Network Error: {ex.Message}");
+        }
+    }
+
+    private async Task DeleteBranch()
+    {
+        if (SelectedBranch == null) return;
+
+        if (SelectedBranch.BranchID == 4)
+        {
+            await JS.InvokeVoidAsync("alert", "Action Blocked: You cannot delete the Central Warehouse.");
+            return;
+        }
+
+        bool confirm = await JS.InvokeAsync<bool>("confirm", $"Are you sure you want to delete '{SelectedBranch.BranchName}'?");
+        if (!confirm) return;
+
+        try
+        {
+            var response = await Http.DeleteAsync($"api/branch/{SelectedBranch.BranchID}");
+            if (response.IsSuccessStatusCode)
+            {
+                await LoadBranches();
+                ClearForm();
+            }
+            else
+            {
+                await JS.InvokeVoidAsync("alert", "Cannot delete this branch because it currently has active inventory or sales records linked to it.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Network Error: {ex.Message}");
+        }
+    }
+
+    public class Branch
+    {
+        public int BranchID { get; set; }
+        public string BranchName { get; set; } = string.Empty;
+        public string Location { get; set; } = string.Empty;
+        public string ContactNumber { get; set; } = string.Empty;
+    }
+}

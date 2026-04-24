@@ -1,66 +1,316 @@
 ﻿@page "/"
+@rendermode InteractiveServer
 @inject HttpClient Http
+@using ApexCharts
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
 
-<PageTitle>S.L.I.C.E. Inventory</PageTitle>
+<PageTitle>Dashboard | S.L.I.C.E.</PageTitle>
 
-<h1>📦 Live Master Inventory</h1>
-<hr />
-
-@* 1. SHOW A LOADING MESSAGE WHILE FETCHING DATA *@
-@if (inventoryList == null)
+@if (metrics == null)
 {
-    <p><em>Loading live data from Azure SQL...</em></p>
+    <div class="d-flex justify-content-center align-items-center" style="height: 50vh;">
+        <p style="color: var(--text-ghost); font-weight: bold;">Loading Enterprise Dashboard...</p>
+    </div>
 }
-@* 2. ONCE DATA ARRIVES, DRAW THE HTML TABLE *@
 else
 {
-    <table class="table table-striped table-hover">
-        <thead class="table-dark">
-            <tr>
-                <th>ID</th>
-                <th>Item Name</th>
-                <th>Category</th>
-                <th>Total Stock</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var item in inventoryList)
-            {
-                <tr>
-                    <td>@item.ItemID</td>
-                    <td><strong>@item.ItemName</strong></td>
-                    <td>@item.Category</td>
-                    <td>@item.TotalStock</td>
-                </tr>
-            }
-        </tbody>
-    </table>
+    <div class="dashboard-container">
+        
+        @* --- HEADER ROW --- *@
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2 class="fw-black mb-0" style="color: var(--text-dark);">Dashboard</h2>
+                <span style="color: #7F8C8D; font-size: 14px; font-weight: 600;">Enterprise Overview</span>
+            </div>
+            <div class="d-flex gap-2 align-items-center">
+                
+                @* DYNAMIC BRANCH DROPDOWN *@
+                <select class="form-select fw-bold text-secondary border-0 shadow-sm" style="width: 150px;" @bind="selectedBranchId" @bind:after="LoadDashboard">
+                    <option value="0">All Branches</option>
+                    @foreach (var b in branches)
+                    {
+                        <option value="@b.BranchID">@b.BranchName</option>
+                    }
+                </select>
+                
+                @* DYNAMIC DATE DROPDOWN *@
+                <select class="form-select fw-bold text-secondary border-0 shadow-sm" style="width: 140px;" @bind="selectedDateRange" @bind:after="LoadDashboard">
+                    <option>Today</option>
+                    <option>This Month</option>
+                    <option>This Quarter</option>
+                    <option>This Year</option>
+                    <option>Last 30 Days</option>
+                    <option>Custom Range</option>
+                </select>
+
+                @* CUSTOM DATE PICKERS (Shows only when Custom Range is selected) *@
+                @if (selectedDateRange == "Custom Range")
+                {
+                    <div class="d-flex align-items-center gap-2 me-2">
+                        <input type="date" class="form-control border-0 shadow-sm fw-bold text-secondary" style="width: 135px;" @bind="customStartDate" @bind:after="LoadDashboard" />
+                        <span class="fw-bold text-secondary">-</span>
+                        <input type="date" class="form-control border-0 shadow-sm fw-bold text-secondary" style="width: 135px;" @bind="customEndDate" @bind:after="LoadDashboard" />
+                    </div>
+                }
+                
+                <button class="btn btn-dark shadow-sm" style="background-color: #2C3E50; border: none; border-radius: 6px;" @onclick="LoadDashboard">
+                    <i class="fa fa-refresh"></i>
+                </button>
+            </div>
+        </div>
+
+        @* --- CRITICAL ALERT BANNER --- *@
+        @if (metrics.Alerts != null && metrics.Alerts.Count > 0)
+        {
+            <div class="alert-banner mb-4">
+                <div class="d-flex align-items-start">
+                    <i class="fa fa-exclamation-triangle text-danger mt-1 me-3 fs-4"></i>
+                    <div>
+                        <h6 class="fw-black text-danger mb-1">CRITICAL INVENTORY WARNING</h6>
+                        <p class="text-danger mb-2" style="font-size: 12px;">The following items have fallen below your required safety stock threshold. Please restock immediately:</p>
+                        @foreach (var alert in metrics.Alerts)
+                        {
+                            <div class="text-danger fw-bold" style="font-size: 13px;">• @alert.ItemName</div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+
+        @* --- KPI CARDS ROW --- *@
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="slice-card h-100 position-relative">
+                    <span class="kpi-label">GROSS REVENUE</span>
+                    <h3 class="kpi-value text-dark mt-2">@metrics.TotalRevenue.ToString("C")</h3>
+                    <span class="kpi-subtext">@metrics.TotalSalesCount Transactions</span>
+                    <div class="kpi-icon-box bg-light-green text-success"><i class="fa fa-line-chart"></i></div>
+                </div>
+            </div>
+            
+            <div class="col-md-3">
+                <div class="slice-card h-100 position-relative">
+                    <span class="kpi-label">NET PROFIT</span>
+                    <h3 class="kpi-value text-primary mt-2">@metrics.NetProfit.ToString("C")</h3>
+                    <span class="kpi-subtext">Revenue minus all expenses</span>
+                    <div class="kpi-icon-box bg-light-blue text-primary"><i class="fa fa-bank"></i></div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="slice-card h-100 position-relative">
+                    <span class="kpi-label">WASTE & LEAKAGE</span>
+                    <h3 class="kpi-value text-danger mt-2">-@metrics.TotalWasteCost.ToString("C")</h3>
+                    <span class="kpi-subtext">Cost of discarded/missing stock</span>
+                    <div class="kpi-icon-box bg-light-red text-danger"><i class="fa fa-trash"></i></div>
+                </div>
+            </div>
+
+            <div class="col-md-3">
+                <div class="slice-card h-100 position-relative">
+                    <span class="kpi-label">URGENT ALERTS</span>
+                    <h3 class="kpi-value text-warning mt-2">@metrics.LowStockCount</h3>
+                    <span class="kpi-subtext">Items requiring restock</span>
+                    <div class="kpi-icon-box bg-light-warning text-warning"><i class="fa fa-warning"></i></div>
+                </div>
+            </div>
+        </div>
+
+        @* --- LIVE WEB CHARTS ROW --- *@
+        <div class="row mb-4">
+            <div class="col-md-8">
+                <div class="slice-card h-100">
+                    <h5 class="fw-black mb-3" style="color: var(--text-dark);">Performance vs Expenses</h5>
+                    <ApexChart TItem="BranchPerformance" Height="250">
+                        <ApexPointSeries TItem="BranchPerformance" 
+                                         Items="metrics.BranchRanking" 
+                                         Name="Revenue" 
+                                         SeriesType="SeriesType.Bar" 
+                                         XValue="e => e.BranchName" 
+                                         YValue="e => e.TotalRevenue" 
+                                         Color="#27AE60" />
+                                         
+                        <ApexPointSeries TItem="BranchPerformance" 
+                                         Items="metrics.BranchRanking" 
+                                         Name="Expenses" 
+                                         SeriesType="SeriesType.Bar" 
+                                         XValue="e => e.BranchName" 
+                                         YValue="e => e.TotalExpenses" 
+                                         Color="#E74C3C" />
+                    </ApexChart>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="slice-card h-100">
+                    <h5 class="fw-black mb-3" style="color: var(--text-dark);">Top Products</h5>
+                    <ApexChart TItem="ProductMix" Height="250">
+                        <ApexPointSeries TItem="ProductMix" 
+                                         Items="metrics.TopProducts" 
+                                         Name="Units Sold" 
+                                         SeriesType="SeriesType.Donut" 
+                                         XValue="e => e.ProductName" 
+                                         YValue="e => e.QuantitySold" />
+                    </ApexChart>
+                </div>
+            </div>
+        </div>
+
+        @* --- RECENT TRANSACTIONS GRID --- *@
+        <div class="slice-card">
+            <h5 class="fw-black mb-3" style="color: var(--text-dark);">Recent Transactions</h5>
+            <div class="table-responsive">
+                <table class="table table-borderless table-hover">
+                    <thead style="border-bottom: 1px solid #EAECEE;">
+                        <tr>
+                            <th class="text-secondary fw-bold">Time</th>
+                            <th class="text-secondary fw-bold">Branch</th>
+                            <th class="text-secondary fw-bold">Product</th>
+                            <th class="text-secondary fw-bold text-end">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach(var txn in metrics.RecentActivity)
+                        {
+                            <tr style="border-bottom: 1px solid #f4f6f7;">
+                                <td class="text-secondary align-middle">@txn.TimeAgo</td>
+                                <td class="fw-bold align-middle" style="color: var(--text-dark);">@txn.BranchName</td>
+                                <td class="align-middle">@txn.ProductName</td>
+                                <td class="fw-black text-success text-end align-middle">@txn.TotalAmount.ToString("C")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
 }
 
-@code {
-    // 3. THIS IS THE C# BRAIN OF THE PAGE
-    private MasterInventory[]? inventoryList;
+<style>
+    .slice-card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 2px 15px rgba(189, 195, 199, 0.15); }
+    .kpi-label { font-size: 11px; font-weight: 800; color: #7F8C8D; letter-spacing: 0.5px; }
+    .kpi-value { font-weight: 900; font-size: 26px; }
+    .kpi-subtext { font-size: 12px; color: #7F8C8D; }
+    .kpi-icon-box { position: absolute; top: 20px; right: 20px; width: 45px; height: 45px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+    .bg-light-green { background-color: #E8F8F5; }
+    .bg-light-blue { background-color: #EAF2F8; }
+    .bg-light-red { background-color: #FDEDEC; }
+    .bg-light-warning { background-color: #FEF5E7; }
+    .alert-banner { background-color: #FDECEA; border: 1px solid #E74C3C; border-radius: 8px; padding: 15px; }
+</style>
 
-    // This method runs automatically the second the page loads
+@code {
+    private DashboardMetrics? metrics;
+    private List<Branch> branches = new();
+    
+    // Default Dropdown Selections
+    private int selectedBranchId = 0;
+    private string selectedDateRange = "This Year";
+    
+    // Custom Date Range variables (defaulting to today)
+    private DateTime customStartDate = DateTime.Today;
+    private DateTime customEndDate = DateTime.Today;
+
     protected override async Task OnInitializedAsync()
     {
+        // 1. Fetch the branches for the dropdown
         try
         {
-            // We are calling the exact endpoint we tested earlier!
-            inventoryList = await Http.GetFromJsonAsync<MasterInventory[]>("api/inventory/branch/4");
+            branches = await Http.GetFromJsonAsync<List<Branch>>("api/dashboard/branches") ?? new();
+        }
+        catch { /* Handle error silently for now */ }
+
+        // 2. Load the initial dashboard data
+        await LoadDashboard();
+    }
+
+    private async Task LoadDashboard()
+    {
+        DateTime start = DateTime.Today;
+        DateTime end = DateTime.Today.AddDays(1).AddTicks(-1);
+
+        // Mimic your exact WPF Date Math!
+        switch (selectedDateRange)
+        {
+            case "This Month":
+                start = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+                end = new DateTime(DateTime.Today.Year, DateTime.Today.Month, DateTime.DaysInMonth(DateTime.Today.Year, DateTime.Today.Month));
+                break;
+            case "This Quarter":
+                int quarter = (DateTime.Today.Month - 1) / 3 + 1;
+                start = new DateTime(DateTime.Today.Year, (quarter - 1) * 3 + 1, 1);
+                end = start.AddMonths(3).AddDays(-1);
+                break;
+            case "This Year":
+                start = new DateTime(DateTime.Today.Year, 1, 1);
+                end = new DateTime(DateTime.Today.Year, 12, 31);
+                break;
+            case "Last 30 Days":
+                start = DateTime.Today.AddDays(-30);
+                end = DateTime.Today;
+                break;
+            case "Custom Range":
+                start = customStartDate;
+                end = customEndDate.AddDays(1).AddTicks(-1); // Capture the full end day
+                break;
+        }
+
+        try
+        {
+            // Call the API with the exact dates and branch ID
+            string url = $"api/dashboard/metrics?branchId={selectedBranchId}&start={start:yyyy-MM-dd}&end={end:yyyy-MM-dd}";
+            metrics = await Http.GetFromJsonAsync<DashboardMetrics>(url);
         }
         catch (Exception ex)
         {
-            Console.WriteLine("Error fetching data: " + ex.Message);
+            Console.WriteLine("Error loading dashboard: " + ex.Message);
         }
     }
 
-    // 4. A MINI-MODEL TO HOLD THE INCOMING JSON DATA
-    public class MasterInventory
+    // --- C# Models ---
+    public class Branch
     {
-        public int ItemID { get; set; }
-        public string ItemName { get; set; } = string.Empty;
-        public string Category { get; set; } = string.Empty;
-        public decimal TotalStock { get; set; }
+        public int BranchID { get; set; }
+        public string BranchName { get; set; } = string.Empty;
+    }
+
+    public class DashboardMetrics
+    {
+        public decimal TotalRevenue { get; set; }
+        public decimal TotalExpenses { get; set; }
+        public decimal NetProfit => TotalRevenue - TotalExpenses;
+        public decimal TotalWasteCost { get; set; }
+        public int TotalSalesCount { get; set; }
+        public int LowStockCount { get; set; }
+        
+        public List<RecentTransaction> RecentActivity { get; set; } = new();
+        public List<LowStockAlert> Alerts { get; set; } = new();
+        public List<BranchPerformance> BranchRanking { get; set; } = new();
+        public List<ProductMix> TopProducts { get; set; } = new();
+    }
+
+    public class RecentTransaction
+    {
+        public string TimeAgo { get; set; } = string.Empty;
+        public string BranchName { get; set; } = string.Empty;
+        public string ProductName { get; set; } = string.Empty;
+        public decimal TotalAmount { get; set; }
+    }
+
+    public class LowStockAlert { public string ItemName { get; set; } = string.Empty; }
+    
+    public class BranchPerformance
+    {
+        public string BranchName { get; set; } = string.Empty;
+        public decimal TotalRevenue { get; set; }
+        public decimal TotalExpenses { get; set; } 
+    }
+
+    public class ProductMix
+    {
+        public string ProductName { get; set; } = string.Empty;
+        public int QuantitySold { get; set; }
     }
 }

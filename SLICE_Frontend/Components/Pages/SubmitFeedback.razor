@@ -1,0 +1,314 @@
+﻿@page "/feedback"
+@using Microsoft.AspNetCore.Components.Authorization
+@inject HttpClient Http
+@inject IJSRuntime JS
+
+<PageTitle>Submit Feedback | S.L.I.C.E.</PageTitle>
+
+<div class="system-background position-relative">
+
+    @* BACKGROUND CANVAS (Opacity="0.6") *@
+    <div class="canvas-layer">
+        <div class="glow1"></div>
+        <div class="glow2"></div>
+    </div>
+
+    @* MAIN FORM GRID (Columns="4*", "6*") *@
+    <div class="main-form-grid @(IsSubmitted ? "form-hidden" : "form-visible")">
+        
+        @* LEFT COLUMN: DYNAMIC PROMPTS (Margin="60,0,40,0") *@
+        <div class="prompt-col">
+            <i class="fa fa-quote-left quote-icon"></i>
+            <div class="dynamic-prompt">@DynamicPrompt</div>
+            <div class="dynamic-subtext">@DynamicSubtext</div>
+        </div>
+
+        @* RIGHT COLUMN: SUBMISSION FORM *@
+        <div class="form-col">
+            <div class="form-padding">
+                
+                <div class="form-title mb-30">SUBMISSION FORM</div>
+
+                <div class="mb-30">
+                    <div class="input-lbl">CATEGORY</div>
+                    <select class="glass-select" @bind="SelectedType" @bind:event="onchange">
+                        @foreach (var type in SuggestionTypes)
+                        {
+                            <option value="@type" class="text-dark">@type</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="mb-30 flex-grow-1 d-flex flex-column">
+                    <div class="input-lbl">YOUR FEEDBACK</div>
+                    <textarea class="glass-textarea flex-grow-1" @bind="Description" @bind:event="oninput"></textarea>
+                </div>
+
+                <button class="btn-submit" @onclick="SubmitSuggestion" disabled="@(string.IsNullOrWhiteSpace(Description) || isProcessing)">
+                    <div class="d-flex align-items-center justify-content-center">
+                        <span>TRANSMIT TO OWNER</span>
+                        <i class="fa fa-paper-plane ms-3"></i>
+                    </div>
+                </button>
+
+            </div>
+        </div>
+
+    </div>
+
+    @* SUCCESS OVERLAY (Background="#F01A0505" ~ rgba(26,5,5,0.94)) *@
+    <div class="success-overlay @(IsSubmitted ? "overlay-visible" : "overlay-hidden")">
+        <div class="success-stack">
+            <div class="success-circle">
+                <i class="fa fa-check text-pizza-orange" style="font-size: 50px;"></i>
+            </div>
+            <div class="success-title">TRANSMISSION SUCCESSFUL</div>
+            <div class="success-sub">The Owner has been notified.</div>
+        </div>
+    </div>
+
+</div>
+
+<style>
+    /* BASE SETTINGS (Background="#1A0505" FontFamily="Segoe UI") */
+    :root {
+        --oven-dark: #1A0505;
+        --pizza-orange: #E67E22;
+        --text-ghost: #95A5A6;
+    }
+
+    .text-pizza-orange { color: var(--pizza-orange) !important; }
+
+    .system-background {
+        background-color: var(--oven-dark);
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        height: calc(100vh - 60px);
+        overflow: hidden;
+    }
+
+    /* BACKGROUND CANVAS (Opacity="0.6") */
+    .canvas-layer { position: absolute; top: 0; left: 0; right: 0; bottom: 0; opacity: 0.6; z-index: 0; pointer-events: none; }
+    
+    /* Glow1: Fill="#922B21" Blur="150" Top: 800->-400 (Duration="0:0:25" AutoReverse="True") */
+    .glow1 {
+        position: absolute; width: 600px; height: 600px; background-color: #922B21; border-radius: 50%;
+        left: 200px; opacity: 0.3; filter: blur(150px);
+        animation: animGlow1 25s infinite alternate ease-in-out;
+    }
+    @@keyframes animGlow1 {
+        0% { top: 800px; }
+        100% { top: -400px; }
+    }
+
+    /* Glow2: Fill="#E67E22" Blur="150" Left: 1200->-200 (Duration="0:0:35" AutoReverse="True") */
+    .glow2 {
+        position: absolute; width: 500px; height: 500px; background-color: #E67E22; border-radius: 50%;
+        top: 200px; opacity: 0.2; filter: blur(150px);
+        animation: animGlow2 35s infinite alternate ease-in-out;
+    }
+    @@keyframes animGlow2 {
+        0% { left: 1200px; }
+        100% { left: -200px; }
+    }
+
+    /* MAIN FORM GRID (Columns="4*", "6*") */
+    .main-form-grid {
+        display: grid; grid-template-columns: 4fr 6fr; height: 100%; position: relative; z-index: 1;
+    }
+    
+    /* DataTrigger WPF Animations */
+    .form-visible { opacity: 1; pointer-events: auto; transition: opacity 0.5s ease 0.4s; }
+    .form-hidden { opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
+
+    /* LEFT COLUMN (Margin="60,0,40,0") */
+    .prompt-col { margin: 0 40px 0 60px; display: flex; flex-direction: column; justify-content: center; }
+    .quote-icon { font-size: 40px; color: var(--pizza-orange); opacity: 0.5; margin-bottom: 20px; }
+    .dynamic-prompt { font-size: 42px; font-weight: 900; color: white; line-height: 48px; margin-bottom: 15px; } /* Black */
+    .dynamic-subtext { font-size: 16px; color: var(--text-ghost); line-height: 24px; }
+
+    /* RIGHT COLUMN (Background="#B20A0202", BorderBrush="#20FFFFFF", DropShadowEffect ShadowDepth="-10") */
+    .form-col {
+        background-color: rgba(10, 2, 2, 0.7); /* #B20A0202 */
+        border-left: 1px solid rgba(255, 255, 255, 0.125);
+        box-shadow: -10px 0 50px rgba(0, 0, 0, 0.8);
+    }
+
+    .form-padding { padding: 60px; display: flex; flex-direction: column; height: 100%; }
+    .mb-30 { margin-bottom: 30px; }
+
+    .form-title { font-size: 14px; font-weight: 700; color: var(--pizza-orange); } /* Bold */
+    .input-lbl { font-size: 12px; font-weight: 700; color: var(--text-ghost); margin-bottom: 10px; }
+
+    /* GLASSMORPHISM INPUTS (Style="GlassTextBox") */
+    .glass-select {
+        background-color: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.25);
+        color: white; font-size: 16px; border-radius: 12px; padding: 0 15px; height: 50px;
+        width: 100%; outline: none; appearance: none; transition: 0.2s;
+    }
+    .glass-select:focus { background-color: rgba(255, 255, 255, 0.16); border-color: var(--pizza-orange); }
+    .glass-select option { background-color: #2C3E50; color: white; }
+
+    .glass-textarea {
+        background-color: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.25);
+        color: white; font-size: 16px; border-radius: 12px; padding: 15px;
+        width: 100%; outline: none; resize: none; transition: 0.2s; font-family: 'Segoe UI';
+        height: 300px;
+    }
+    .glass-textarea:focus { background-color: rgba(255, 255, 255, 0.16); border-color: var(--pizza-orange); }
+
+    /* SUBMIT BUTTON */
+    .btn-submit {
+        background-color: var(--pizza-orange); color: white; height: 60px; border-radius: 12px; border: none;
+        font-weight: 900; font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center;
+        transition: 0.2s; margin-top: auto;
+    }
+    .btn-submit:hover:not(:disabled) { filter: brightness(1.1); }
+    .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* SUCCESS OVERLAY (Background="#F01A0505") */
+    .success-overlay {
+        position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+        background-color: rgba(26, 5, 5, 0.94); /* #F01A0505 */
+        z-index: 10; display: flex; align-items: center; justify-content: center;
+    }
+    
+    /* Exact WPF Storyboard Timings */
+    .overlay-visible { 
+        opacity: 1; visibility: visible; 
+        /* Delay opacity fade by 0.3s, duration 0.5s */
+        transition: opacity 0.5s ease 0.3s, visibility 0s 0s; 
+    }
+    .overlay-hidden { 
+        opacity: 0; visibility: hidden; 
+        /* Fade out over 0.4s, hide visibility after */
+        transition: opacity 0.4s ease 0s, visibility 0s 0.4s; 
+    }
+
+    .success-stack { display: flex; flex-direction: column; align-items: center; }
+    .success-circle { background-color: rgba(230, 126, 34, 0.125); width: 120px; height: 120px; border-radius: 60px; display: flex; align-items: center; justify-content: center; margin-bottom: 30px; }
+    .success-title { font-size: 28px; font-weight: 900; color: white; text-align: center; } /* Black */
+    .success-sub { font-size: 16px; color: var(--text-ghost); margin-top: 10px; text-align: center; }
+</style>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
+
+    private int currentUserId = 0;
+    
+    public List<string> SuggestionTypes { get; set; } = new() 
+    { 
+        "Add Menu Item", "Remove Menu Item", "Modify Item", "General Feedback", "Store Operations" 
+    };
+
+    private string _selectedType = "Add Menu Item";
+    public string SelectedType
+    {
+        get => _selectedType;
+        set
+        {
+            if (_selectedType != value)
+            {
+                _selectedType = value;
+                UpdateDynamicPrompt();
+            }
+        }
+    }
+
+    public string Description { get; set; } = "";
+    
+    public string DynamicPrompt { get; set; } = "";
+    public string DynamicSubtext { get; set; } = "";
+
+    public bool IsSubmitted { get; set; } = false;
+    private bool isProcessing = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateTask;
+        var user = authState.User;
+
+        if (user.Identity != null && user.Identity.IsAuthenticated)
+        {
+            int.TryParse(user.FindFirst("UserID")?.Value, out currentUserId);
+        }
+
+        UpdateDynamicPrompt();
+    }
+
+    private void UpdateDynamicPrompt()
+    {
+        switch (SelectedType)
+        {
+            case "Add Menu Item":
+                DynamicPrompt = "Got a killer recipe idea?";
+                DynamicSubtext = "Tell us what we should bake next. Include ingredients and why customers will love it.";
+                break;
+            case "Store Operations":
+                DynamicPrompt = "How can we work smarter?";
+                DynamicSubtext = "Suggestions for kitchen flow, POS improvements, or inventory handling.";
+                break;
+            case "General Feedback":
+                DynamicPrompt = "What's on your mind?";
+                DynamicSubtext = "Share customer comments, complaints, or general observations with the Owner.";
+                break;
+            default:
+                DynamicPrompt = "Help us improve S.L.I.C.E.";
+                DynamicSubtext = "Provide detailed feedback so we can continue to upgrade our operations.";
+                break;
+        }
+    }
+
+    private async Task SubmitSuggestion()
+    {
+        if (string.IsNullOrWhiteSpace(Description)) return;
+        isProcessing = true;
+
+        try
+        {
+            var request = new SubmitSuggestionDto
+            {
+                SuggestionType = SelectedType,
+                Description = Description,
+                SubmittedBy = currentUserId
+            };
+
+            var response = await Http.PostAsJsonAsync("api/feedback", request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                // Trigger CSS Success Overlay & Form Fade Out
+                IsSubmitted = true;
+                StateHasChanged();
+
+                // Wait 3 seconds for user to read it (Exact WPF logic)
+                await Task.Delay(3000);
+
+                // Silently reset the form
+                Description = "";
+                SelectedType = SuggestionTypes[0];
+                UpdateDynamicPrompt();
+                
+                IsSubmitted = false;
+            }
+            else
+            {
+                await JS.InvokeVoidAsync("alert", $"Failed: {await response.Content.ReadAsStringAsync()}");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Network Error: {ex.Message}");
+        }
+        
+        isProcessing = false;
+        StateHasChanged();
+    }
+
+    public class SubmitSuggestionDto
+    {
+        public string SuggestionType { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public int SubmittedBy { get; set; }
+    }
+}

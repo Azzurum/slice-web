@@ -1,0 +1,248 @@
+﻿@inject HttpClient Http
+@inject IJSRuntime JS
+
+@if (IsVisible)
+{
+    <div class="modal-overlay" @onclick="Cancel">
+        <div class="modal-window" @onclick:stopPropagation="true">
+            <div class="modal-padding">
+                
+                @* HEADER *@
+                <div class="mb-20">
+                    <div class="title">Dispatch Logistics</div>
+                    <div class="subtitle">Preparing @ItemsToDispatch.Count multi-item shipment(s)</div>
+                </div>
+
+                @* BRANCH SELECTION (WrapPanel matching BranchChipStyle) *@
+                <div class="mb-15">
+                    <div class="input-lbl">SELECT DESTINATIONS</div>
+                    <div class="branch-scroll">
+                        <div class="wrap-panel">
+                            @foreach (var branch in Branches)
+                            {
+                                <button class="branch-chip @(branch.IsSelected ? "chip-active" : "")" 
+                                        @onclick="() => ToggleBranch(branch)">
+                                    <i class="fa fa-map-marker me-2"></i>
+                                    @branch.BranchName
+                                </button>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                @* ITEMS DATAGRID *@
+                <div class="grid-section">
+                    <div class="input-lbl">ITEMS & QUANTITIES</div>
+                    <div class="grid-border">
+                        <table class="custom-datagrid">
+                            <thead>
+                                <tr>
+                                    <th style="width: auto;">ITEM</th>
+                                    <th style="width: 70px;">UNIT</th>
+                                    <th style="width: 110px; text-align: center;">QTY / BRANCH</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in ItemsToDispatch)
+                                {
+                                    <tr>
+                                        <td class="col-item">@item.ItemName</td>
+                                        <td class="col-unit">@item.Unit</td>
+                                        <td class="col-qty">
+                                            <div class="qty-box">
+                                                @* min="0" physically blocks the HTML down arrow from going below zero *@
+                                                <input type="number" min="0" step="any" class="qty-input" @bind="item.Quantity" @bind:event="oninput" />
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                @* FOOTER *@
+                <div class="footer-grid">
+                    <div class="footer-note">* Qty will be sent to EACH selected branch.</div>
+                    <div class="d-flex align-items-center justify-content-end">
+                        <button class="btn-cancel" @onclick="Cancel">CANCEL</button>
+                        <button class="btn-dispatch" @onclick="Dispatch">
+                            <i class="fa fa-truck me-2"></i> DISPATCH
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    /* Z-Index 9999 ensures it floats ABOVE the sticky table header! */
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.4); z-index: 9999; display: flex; justify-content: center; align-items: center; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    
+    /* user-select: none prevents the annoying browser text highlighting when clicking rapidly! */
+    .modal-window { width: 550px; background: white; border-radius: 16px; box-shadow: 0 5px 20px rgba(189, 195, 199, 0.3); display: flex; flex-direction: column; max-height: 580px; user-select: none; -webkit-user-select: none; }
+    .modal-padding { padding: 25px 30px; display: flex; flex-direction: column; height: 100%; }
+
+    .mb-15 { margin-bottom: 15px; }
+    .mb-20 { margin-bottom: 20px; }
+
+    .title { font-size: 24px; font-weight: 900; color: #2C3E50; } 
+    .subtitle { font-size: 13px; color: #7F8C8D; margin-top: 2px; }
+    .input-lbl { font-size: 11px; font-weight: 700; color: #95A5A6; margin-bottom: 10px; }
+
+    .branch-scroll { max-height: 100px; overflow-y: auto; padding-right: 5px; }
+    .branch-scroll::-webkit-scrollbar { width: 4px; }
+    .branch-scroll::-webkit-scrollbar-thumb { background: #EAECEE; border-radius: 2px; }
+    
+    .wrap-panel { display: flex; flex-wrap: wrap; }
+    .branch-chip { background: #F4F6F7; border: 1.5px solid #EAECEE; border-radius: 16px; padding: 8px 15px; margin: 0 10px 10px 0; color: #7F8C8D; font-weight: 700; font-size: 12px; cursor: pointer; display: flex; align-items: center; transition: 0.1s; outline: none; }
+    .branch-chip:hover { background: #EAECEE; }
+    .chip-active { background: #E67E22; border-color: #D35400; color: white; }
+
+    .grid-section { flex-grow: 1; display: flex; flex-direction: column; margin-bottom: 20px; min-height: 0; }
+    .grid-border { border: 1px solid #EAECEE; border-radius: 8px; overflow-y: auto; flex-grow: 1; }
+    .grid-border::-webkit-scrollbar { width: 4px; }
+    .grid-border::-webkit-scrollbar-thumb { background: #EAECEE; }
+
+    .custom-datagrid { width: 100%; border-collapse: collapse; text-align: left; }
+    .custom-datagrid th { background: #F8F9F9; padding: 10px 15px; font-weight: 700; color: #7F8C8D; border-bottom: 1px solid #EAECEE; font-size: 11px; position: sticky; top: 0; z-index: 1; }
+    .custom-datagrid tr { height: 45px; border-bottom: 1px solid #F4F6F7; }
+    .custom-datagrid td { padding: 0 15px; vertical-align: middle; }
+
+    .col-item { font-weight: 700; color: #2C3E50; }
+    .col-unit { color: #95A5A6; }
+    .qty-box { background: #F4F6F7; border-radius: 6px; height: 32px; display: flex; align-items: center; justify-content: center; }
+    
+    /* Allow typing in inputs despite the modal's user-select: none */
+    .qty-input { background: transparent; border: none; outline: none; font-weight: 900; font-size: 14px; color: #E67E22; text-align: center; width: 100%; user-select: auto; -webkit-user-select: auto; }
+
+    .footer-grid { display: grid; grid-template-columns: 1fr auto; align-items: center; }
+    .footer-note { color: #E67E22; font-size: 11px; font-weight: 600; }
+    
+    .btn-cancel { width: 90px; height: 42px; background: transparent; border: none; color: #95A5A6; font-weight: 700; cursor: pointer; margin-right: 10px; transition: 0.2s; outline: none; }
+    .btn-cancel:hover { color: #2C3E50; }
+    
+    .btn-dispatch { width: 140px; height: 42px; background: #E67E22; color: white; font-weight: 700; border: none; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; outline: none; }
+    .btn-dispatch:hover { filter: brightness(1.1); }
+</style>
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public EventCallback<bool> IsVisibleChanged { get; set; }
+    [Parameter] public List<DispatchItemModel> ItemsToDispatch { get; set; } = new();
+    
+    // EXTREMELY IMPORTANT: This returns the bundled DTO to the parent page!
+    [Parameter] public EventCallback<DispatchResultDto> OnDispatch { get; set; }
+
+    public List<BranchSelectionModel> Branches { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadBranches();
+    }
+
+    // Refresh branches every time the modal opens just to be safe
+    protected override async Task OnParametersSetAsync()
+    {
+        if (IsVisible && !Branches.Any())
+        {
+            await LoadBranches();
+        }
+    }
+
+    private async Task LoadBranches()
+    {
+        try
+        {
+            // Attempt to fetch REAL branches from the database
+            var res = await Http.GetFromJsonAsync<List<BranchDto>>("api/logistics/branches");
+            
+            if (res != null && res.Any())
+            {
+                Branches = res.Select(b => new BranchSelectionModel { 
+                                  BranchID = b.BranchID, 
+                                  BranchName = b.BranchName, 
+                                  IsSelected = false 
+                              }).ToList();
+                return; // Success! Exit the method.
+            }
+        }
+        catch
+        {
+            // API failed (server offline or endpoint missing)
+        }
+
+        // FALLBACK: If the database fails, load these so the UI never breaks!
+        Branches = new List<BranchSelectionModel>
+        {
+            new BranchSelectionModel { BranchID = 1, BranchName = "Manila Branch (Fallback)", IsSelected = false },
+            new BranchSelectionModel { BranchID = 2, BranchName = "Makati Branch (Fallback)", IsSelected = false },
+            new BranchSelectionModel { BranchID = 3, BranchName = "QC Branch (Fallback)", IsSelected = false }
+        };
+    }
+
+    private void ToggleBranch(BranchSelectionModel branch)
+    {
+        branch.IsSelected = !branch.IsSelected;
+    }
+
+    private async Task Dispatch()
+    {
+        if (!Branches.Any(b => b.IsSelected))
+        {
+            await JS.InvokeVoidAsync("alert", "Please select at least one destination branch.");
+            return;
+        }
+
+        // BLOCK NEGATIVES AT THE C# LEVEL
+        if (ItemsToDispatch.Any(i => i.Quantity < 0))
+        {
+            await JS.InvokeVoidAsync("alert", "Quantities cannot be negative.");
+            return;
+        }
+
+        if (!ItemsToDispatch.Any(i => i.Quantity > 0))
+        {
+            await JS.InvokeVoidAsync("alert", "Please enter a dispatch quantity greater than zero for at least one item.");
+            return;
+        }
+
+        // BUNDLE THE DATA TO SEND TO THE PARENT
+        var result = new DispatchResultDto
+        {
+            TargetBranchIDs = Branches.Where(b => b.IsSelected).Select(b => b.BranchID).ToList(),
+            Items = ItemsToDispatch.Where(i => i.Quantity > 0).ToList()
+        };
+
+        await OnDispatch.InvokeAsync(result);
+        await CloseModal();
+    }
+
+    private async Task Cancel() => await CloseModal();
+
+    private async Task CloseModal()
+    {
+        IsVisible = false;
+        
+        // Reset selections for next time
+        foreach(var branch in Branches)
+        {
+            branch.IsSelected = false;
+        }
+        
+        await IsVisibleChanged.InvokeAsync(IsVisible);
+    }
+
+    public class BranchDto { public int BranchID { get; set; } public string BranchName { get; set; } = ""; }
+    public class BranchSelectionModel { public int BranchID { get; set; } public string BranchName { get; set; } = ""; public bool IsSelected { get; set; } }
+    public class DispatchItemModel { public int ItemID { get; set; } public string ItemName { get; set; } = ""; public string Unit { get; set; } = ""; public decimal Quantity { get; set; } }
+    
+    // NEW DTO TO BUNDLE THE DATA
+    public class DispatchResultDto
+    {
+        public List<int> TargetBranchIDs { get; set; } = new();
+        public List<DispatchItemModel> Items { get; set; } = new();
+    }
+}

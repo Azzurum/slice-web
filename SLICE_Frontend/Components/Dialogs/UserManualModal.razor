@@ -1,0 +1,155 @@
+﻿@if (IsVisible)
+{
+    <div class="modal-overlay" @onclick="Cancel">
+        <div class="manual-window shadow-window" @onclick:stopPropagation="true">
+            
+            @* HEADER (Dark) *@
+            <div class="manual-header">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="d-flex align-items-center mb-1">
+                            <i class="fa fa-book me-3" style="color: #E67E22; font-size: 22px;"></i>
+                            <div class="header-title">System Documentation</div>
+                        </div>
+                        <div class="header-subtitle">Quick reference guide for operating S.L.I.C.E. Enterprise</div>
+                    </div>
+                    <button class="btn-close-manual" @onclick="Cancel" title="Close Manual">
+                        <i class="fa fa-times"></i>
+                    </button>
+                </div>
+            </div>
+
+            @* SCROLLING CONTENT *@
+            <div class="manual-scroll">
+                <div class="manual-body">
+
+                    @* CARD 1: POS *@
+                    <div class="manual-card">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="icon-box" style="background: #E8F8F5;">
+                                <i class="fa fa-desktop" style="color: #27AE60;"></i>
+                            </div>
+                            <div class="card-title">Order Processing & Sales Counter</div>
+                        </div>
+                        <div class="bullet-text"><span class="fw-bold" style="color: #E67E22;">1. Taking Orders:</span> Navigate to the Counter. Click on menu items on the left to add them to the cart.</div>
+                        <div class="bullet-text"><span class="fw-bold" style="color: #E67E22;">2. Stock Depletion:</span> Completing a sale automatically deducts the raw ingredients from your Branch Inventory based on the item's recipe. If an ingredient is out of stock, the system will prevent the sale.</div>
+                        <div class="bullet-text"><span class="fw-bold" style="color: #E67E22;">3. Applying Discounts:</span> Click the 'Apply Discount' button in the cart to select an active promotional tier (e.g., Senior Citizen, PWD).</div>
+                    </div>
+
+                    @* CARD 2: LOGISTICS *@
+                    <div class="manual-card">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="icon-box" style="background: #EBF5FB;">
+                                <i class="fa fa-truck" style="color: #2980B9;"></i>
+                            </div>
+                            <div class="card-title">Inventory & Logistics Workflow</div>
+                        </div>
+                        <div class="bullet-text"><span class="fw-bold" style="color: #34495E;">1. Requesting (Branch):</span> Use 'Request Stock' to ask the central warehouse for raw materials.</div>
+                        <div class="bullet-text"><span class="fw-bold" style="color: #34495E;">2. Dispatching (Admin):</span> Administrators review requests in 'Incoming Orders'. Once approved, the stock is deducted from Central Warehouse and placed 'In Transit'.</div>
+                        <div class="bullet-text"><span class="fw-bold" style="color: #34495E;">3. Receiving (Branch):</span> Once the delivery arrives, the branch must click 'Receive Shipment' to formally add the items to their local stock.</div>
+                    </div>
+
+                    @* CARD 3: MENU *@
+                    <div class="manual-card">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="icon-box" style="background: #FEF9E7;">
+                                <i class="fa fa-book" style="color: #F39C12;"></i>
+                            </div>
+                            <div class="card-title">Menu Registry & Bill of Materials</div>
+                        </div>
+                        <div class="bullet-text"><span class="fw-bold" style="color: #F39C12;">Creating Items:</span> Add a new product and assign its Base Price. Use the 'Upload Image' button to attach a display photo.</div>
+                        <div class="bullet-text"><span class="fw-bold" style="color: #F39C12;">Building Recipes:</span> Select raw ingredients from the dropdown and assign the exact quantity required (e.g., 200g of Flour). This data powers the automated depletion engine.</div>
+                    </div>
+
+                    @* CARD 4: LEDGER *@
+                    <div class="manual-card">
+                        <div class="d-flex align-items-center mb-3">
+                            <div class="icon-box" style="background: #FDEDEC;">
+                                <i class="fa fa-line-chart" style="color: #E74C3C;"></i>
+                            </div>
+                            <div class="card-title">Financial Ledger & Auditing</div>
+                        </div>
+                        <div class="bullet-text"><span class="fw-bold" style="color: #E74C3C;">Net Profit Calculation:</span> The Ledger automatically calculates [Total Revenue] minus [Total Expenses (Purchasing + Waste)].</div>
+                        <div class="bullet-text"><span class="fw-bold" style="color: #E74C3C;">Waste Tracking:</span> Any spoiled items logged in the Waste Tracker are automatically converted to financial losses based on their purchase value and deducted from the Net Profit.</div>
+                        <div class="bullet-text"><span class="fw-bold" style="color: #E74C3C;">System Audits:</span> Every login, dispatch, and purchase is recorded. Use the 'Export' button in the Audit Logs to generate a CSV for security compliance.</div>
+                    </div>
+
+                </div>
+            </div>
+
+            @* FOOTER WITH 'GOT IT' BUTTON *@
+            <div class="manual-footer">
+                <div class="footer-note">Need deeper technical support? Contact the IT Administrator.</div>
+                <button class="btn-gotit" @onclick="Cancel">GOT IT</button>
+            </div>
+            
+        </div>
+    </div>
+}
+
+<style>
+    .modal-overlay {
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0, 0, 0, 0.4); z-index: 10000;
+        display: flex; justify-content: center; align-items: center;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    
+    .manual-window {
+        width: 750px; height: 650px;
+        min-width: 700px; min-height: 500px;
+        background: white; border-radius: 16px;
+        display: flex; flex-direction: column; overflow: hidden;
+    }
+    
+    .shadow-window { box-shadow: 0 4px 20px rgba(44, 62, 80, 0.2); }
+
+    /* HEADER */
+    .manual-header { background: #2C3E50; padding: 20px 30px; }
+    .header-title { font-size: 24px; font-weight: 900; color: white; line-height: 1.2; }
+    .header-subtitle { font-size: 13px; font-weight: 600; color: #95A5A6; }
+    
+    .btn-close-manual { background: transparent; border: none; color: #BDC3C7; font-size: 16px; cursor: pointer; padding: 0; margin-top: -5px; outline: none; transition: 0.2s; }
+    .btn-close-manual:hover { color: white; }
+
+    /* SCROLL BODY */
+    .manual-scroll { flex-grow: 1; overflow-y: auto; padding-right: 5px; }
+    .manual-scroll::-webkit-scrollbar { width: 6px; }
+    .manual-scroll::-webkit-scrollbar-thumb { background: #BDC3C7; border-radius: 3px; }
+    
+    .manual-body { padding: 25px 30px 10px 30px; }
+
+    /* MANUAL CARDS */
+    .manual-card {
+        background: #FAFCFC; border: 1.5px solid #EAECEE;
+        border-radius: 10px; padding: 20px; margin-bottom: 15px;
+    }
+    .icon-box { width: 32px; height: 32px; border-radius: 6px; display: flex; justify-content: center; align-items: center; margin-right: 10px; }
+    .card-title { font-size: 16px; font-weight: 900; color: #2C3E50; }
+    .bullet-text { font-size: 13px; color: #34495E; margin-bottom: 8px; line-height: 1.4; text-wrap: wrap; }
+
+    /* FOOTER */
+    .manual-footer {
+        background: #F8F9F9; border-top: 1px solid #EAECEE;
+        padding: 15px 30px; display: flex; justify-content: space-between; align-items: center;
+    }
+    .footer-note { font-size: 12px; color: #7F8C8D; }
+    
+    .btn-gotit {
+        background: #E67E22; color: white;
+        width: 100px; height: 36px; border: none; border-radius: 6px;
+        font-weight: bold; cursor: pointer; outline: none; transition: 0.2s;
+    }
+    .btn-gotit:hover { opacity: 0.85; }
+</style>
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public EventCallback<bool> IsVisibleChanged { get; set; }
+
+    private async Task Cancel()
+    {
+        IsVisible = false;
+        await IsVisibleChanged.InvokeAsync(IsVisible);
+    }
+}

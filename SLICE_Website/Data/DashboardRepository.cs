@@ -10,15 +10,17 @@ namespace SLICE_Website.Data
     {
         private readonly DatabaseService _dbService;
 
+        // Dependency Injection constructor
         public DashboardRepository(DatabaseService dbService)
         {
             _dbService = dbService;
         }
+
         public List<Branch> GetAllBranches()
         {
             using (var connection = _dbService.GetConnection())
             {
-                    return connection.Query<Branch>("SELECT BranchID, BranchName FROM Branches").ToList();
+                return connection.Query<Branch>("SELECT BranchID, BranchName FROM Branches").ToList();
             }
         }
 

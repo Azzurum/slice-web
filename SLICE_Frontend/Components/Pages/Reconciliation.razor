@@ -1,0 +1,293 @@
+﻿@page "/recon"
+@using Microsoft.AspNetCore.Components.Authorization
+@inject HttpClient Http
+@inject IJSRuntime JS
+
+<PageTitle>Stock Reconciliation | S.L.I.C.E.</PageTitle>
+
+<div class="recon-bg position-relative overflow-hidden d-flex justify-content-center align-items-center">
+    
+    @* --- BACKGROUND ANIMATIONS (Falling Boxes) --- *@
+    <div class="falling-box box1"></div>
+    <div class="falling-box box2"></div>
+
+    @* --- MAIN CARD --- *@
+    <div class="main-card shadow-lg bg-white d-flex flex-column p-5">
+        
+        @* HEADER *@
+        <div class="d-flex align-items-center mb-4">
+            <div class="icon-box bg-audit-blue text-white d-flex justify-content-center align-items-center rounded">
+                <i class="fa fa-clipboard fs-4"></i>
+            </div>
+            <div class="ms-3">
+                <h4 class="fw-black text-audit-dark mb-0">STOCK RECONCILIATION</h4>
+                <span class="text-secondary fw-semibold" style="font-size: 13px;">Verify physical inventory against system records.</span>
+            </div>
+        </div>
+        
+        <hr class="text-muted opacity-25 mb-4" />
+
+        @* DATA GRID *@
+        <div class="table-container flex-grow-1 overflow-auto pe-2">
+            @if (isLoading)
+            {
+                <div class="text-center text-muted mt-5">
+                    <i class="fa fa-spinner fa-spin fs-2 mb-2"></i>
+                    <p class="fw-bold">Loading Inventory Records...</p>
+                </div>
+            }
+            else if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="alert alert-danger fw-bold"><i class="fa fa-warning me-2"></i>@errorMessage</div>
+            }
+            else
+            {
+                <table class="table table-hover align-middle border-bottom">
+                    <thead class="sticky-top bg-white" style="z-index: 1;">
+                        <tr>
+                            <th class="text-secondary border-bottom border-2 border-light py-3">ITEM NAME</th>
+                            <th class="text-secondary border-bottom border-2 border-light py-3">SYSTEM QTY</th>
+                            <th class="text-secondary border-bottom border-2 border-light py-3" style="width: 200px;">PHYSICAL COUNT</th>
+                            <th class="text-secondary border-bottom border-2 border-light py-3" style="width: 150px;">STATUS</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in reconItems)
+                        {
+                            <tr>
+                                <td class="fw-bold text-audit-dark">@item.ItemName</td>
+                                <td class="text-secondary fw-semibold">@item.SystemQty.ToString("N0")</td>
+                                <td>
+                                    <input type="number" step="any" class="audit-input" 
+                                           @bind="item.PhysicalQty" @bind:event="oninput" />
+                                </td>
+                                <td>
+                                    @if (item.IsMatched)
+                                    {
+                                        <span class="badge-matched"><i class="fa fa-check me-2"></i>MATCHED</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge-variance"><i class="fa fa-exclamation me-2"></i>VARIANCE</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+
+        @* FOOTER *@
+        <div class="mt-4 d-flex justify-content-end">
+            <button class="btn-finalize" @onclick="SubmitAudit" disabled="@isSubmitting">
+                @if (isSubmitting)
+                {
+                    <i class="fa fa-circle-notch fa-spin me-2"></i> <span>PROCESSING...</span>
+                }
+                else
+                {
+                    <span>FINALIZE AUDIT</span>
+                }
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+    :root {
+        --audit-blue: #3498DB;
+        --audit-dark: #2C3E50;
+        --match-green: #27AE60;
+        --variance-orange: #E67E22;
+        --match-bg: #D5F5E3;
+        --variance-bg: #FDEBD0;
+    }
+
+    .bg-audit-blue { background-color: var(--audit-blue); }
+    .text-audit-dark { color: var(--audit-dark); }
+
+    /* Background Setup */
+    .recon-bg {
+        height: calc(100vh - 60px);
+        margin: -30px;
+        background: linear-gradient(135deg, #F0F3F4 0%, #E5E8E8 100%);
+    }
+
+    /* Animated Canvas Equivalents */
+    .falling-box { position: absolute; border: 2px solid; opacity: 0.1; z-index: 0; }
+    
+    .box1 {
+        width: 100px; height: 100px; border-color: var(--audit-blue); left: 15%;
+        animation: dropBox1 20s infinite linear;
+    }
+    @@keyframes dropBox1 { from { top: 110%; } to { top: -20%; } }
+
+    .box2 {
+        width: 150px; height: 150px; border-color: var(--audit-dark); right: 15%;
+        animation: dropBox2 30s infinite linear;
+    }
+    @@keyframes dropBox2 { from { top: 110%; } to { top: -20%; } }
+
+    /* Layout */
+    .main-card { width: 1000px; height: 650px; border-radius: 8px; z-index: 10; position: relative; }
+    .icon-box { width: 45px; height: 45px; }
+    
+    /* Table & Inputs */
+    .table-container::-webkit-scrollbar { width: 8px; }
+    .table-container::-webkit-scrollbar-thumb { background: #BDC3C7; border-radius: 4px; }
+    
+    .audit-input {
+        height: 35px; width: 100%; padding: 0 10px; font-size: 14px; font-weight: 600;
+        background: white; border: 1px solid #BDC3C7; border-radius: 4px; outline: none;
+        transition: 0.2s;
+    }
+    .audit-input:focus { border: 2px solid var(--audit-blue); }
+
+    /* Status Badges */
+    .badge-matched {
+        display: inline-block; padding: 6px 12px; border-radius: 4px;
+        background: var(--match-bg); color: var(--match-green); font-size: 11px; font-weight: bold;
+    }
+    .badge-variance {
+        display: inline-block; padding: 6px 12px; border-radius: 4px;
+        background: var(--variance-bg); color: var(--variance-orange); font-size: 11px; font-weight: bold;
+    }
+
+    /* Buttons */
+    .btn-finalize {
+        height: 50px; width: 220px; background: var(--audit-blue); color: white;
+        border: none; border-radius: 25px; font-weight: 900; font-size: 14px;
+        box-shadow: 0 5px 15px rgba(52, 152, 219, 0.4); transition: 0.2s; cursor: pointer;
+    }
+    .btn-finalize:hover:not(:disabled) { background: #2980B9; transform: translateY(-2px); }
+    .btn-finalize:disabled { background: #BDC3C7; cursor: not-allowed; box-shadow: none; }
+</style>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
+
+    private List<ReconItemVM> reconItems = new();
+    private int currentBranchId = 0;
+    private int currentUserId = 0;
+    
+    private bool isLoading = true;
+    private bool isSubmitting = false;
+    private string errorMessage = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateTask;
+        var user = authState.User;
+
+        if (user.Identity != null && user.Identity.IsAuthenticated)
+        {
+            int.TryParse(user.FindFirst("UserID")?.Value, out currentUserId);
+            int.TryParse(user.FindFirst("BranchID")?.Value, out currentBranchId);
+        }
+
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        errorMessage = "";
+        
+        try
+        {
+            // Gets raw database values and populates the physical default automatically
+            var items = await Http.GetFromJsonAsync<List<ReconItemVM>>($"api/inventory/recon/{currentBranchId}");
+            if (items != null)
+            {
+                foreach (var item in items)
+                {
+                    // By default, physical qty matches system qty until edited
+                    item.PhysicalQty = item.SystemQty; 
+                }
+                reconItems = items;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Unable to load inventory data: {ex.Message}";
+        }
+        
+        isLoading = false;
+    }
+
+    private async Task SubmitAudit()
+    {
+        if (reconItems.Count == 0) return;
+
+        // Uses JS Interop to replicate the WPF MessageBox confirmation
+        bool confirmed = await JS.InvokeAsync<bool>("confirm", 
+            "Finalize this physical audit? Any missing stock will be permanently logged as a Leakage Expense on the Financial Ledger.");
+
+        if (!confirmed) return;
+
+        isSubmitting = true;
+        errorMessage = "";
+
+        try
+        {
+            // Only send modified items to the server to optimize traffic
+            var adjustments = reconItems.Where(x => !x.IsMatched).Select(x => new
+            {
+                StockID = x.StockID,
+                BranchID = x.BranchID,
+                ItemID = x.ItemID,
+                SystemQty = x.SystemQty,
+                PhysicalQty = x.PhysicalQty,
+                UserId = currentUserId
+            }).ToList();
+
+            if (!adjustments.Any())
+            {
+                await JS.InvokeVoidAsync("alert", "Audit Completed. No variances were found.");
+                isSubmitting = false;
+                return;
+            }
+
+            var response = await Http.PostAsJsonAsync("api/inventory/adjust", adjustments);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<AuditResult>();
+                await JS.InvokeVoidAsync("alert", result?.Message ?? "Audit Successful");
+                await LoadData(); // Refresh the grid
+            }
+            else
+            {
+                errorMessage = await response.Content.ReadAsStringAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Database Error: {ex.Message}";
+        }
+
+        isSubmitting = false;
+    }
+
+    // Dynamic View Model for real-time Blazor data binding
+    public class ReconItemVM
+    {
+        public int StockID { get; set; }
+        public int BranchID { get; set; }
+        public int ItemID { get; set; }
+        public string ItemName { get; set; } = string.Empty;
+        public decimal SystemQty { get; set; }
+        public decimal PhysicalQty { get; set; }
+        
+        // C# handles the state evaluation automatically via Blazor's re-render
+        public bool IsMatched => SystemQty == PhysicalQty;
+    }
+
+    public class AuditResult
+    {
+        public string Message { get; set; } = string.Empty;
+        public int Variances { get; set; }
+    }
+}

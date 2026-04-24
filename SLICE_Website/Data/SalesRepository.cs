@@ -23,7 +23,6 @@ namespace SLICE_Website.Data
         {
             using (var connection = _dbService.GetConnection())
             {
-                // This runs a precise, isolated subquery for every individual menu item.
                 string sql = @"
                 SELECT 
                     m.ProductID, 
@@ -48,7 +47,6 @@ namespace SLICE_Website.Data
         // =========================================================
         // 2. COMPLETE SALE (Entire Cart + Audit/Payment Integration)
         // =========================================================
-        // [FIX APPLIED]: Added 'decimal finalDiscountedTotal' so the dashboard gets the true discounted revenue
         public bool CompleteSale(int branchId, int userId, List<CartItem> cart, string paymentMethod, string referenceNumber, decimal finalDiscountedTotal, out string errorMessage)
         {
             errorMessage = string.Empty;
@@ -57,12 +55,10 @@ namespace SLICE_Website.Data
             {
                 connection.Open();
 
-                // Start a transaction so the whole cart succeeds or fails together (Atomic Transaction)
                 using (var transaction = connection.BeginTransaction())
                 {
                     try
                     {
-                        // Loop through every item in the shopping cart
                         foreach (var item in cart)
                         {
                             // --- STEP 1: GET PRODUCT PRICE SNAPSHOT ---
@@ -84,7 +80,7 @@ namespace SLICE_Website.Data
                                     UPDATE BranchInventory 
                                     SET CurrentQuantity = CurrentQuantity - @AmountToDeduct
                                     WHERE BranchID = @BranchID AND ItemID = @ItemID 
-                                    AND CurrentQuantity >= @AmountToDeduct"; // Safety check
+                                    AND CurrentQuantity >= @AmountToDeduct";
 
                                 foreach (var ing in ingredients)
                                 {
@@ -97,7 +93,6 @@ namespace SLICE_Website.Data
                                         ItemID = ing.IngredientID
                                     }, transaction);
 
-                                    // If 0 rows were updated, it means stock was insufficient
                                     if (rowsAffected == 0)
                                     {
                                         throw new Exception($"Transaction blocked: Insufficient stock for an ingredient required to make {product.ProductName}.");
@@ -110,7 +105,7 @@ namespace SLICE_Website.Data
                                 INSERT INTO SalesTransactions 
                                 (BranchID, UserID, ProductID, QuantitySold, UnitPrice, TransactionDate, PaymentMethod, ReferenceNumber, TransactionStatus)
                                 VALUES 
-                                (@BranchID, @UserID, @ProductID, @Qty, @Price, GETDATE(), @PayMethod, @RefNum, 'TransactionStatus')";
+                                (@BranchID, @UserID, @ProductID, @Qty, @Price, GETDATE(), @PayMethod, @RefNum, 'Completed')";
 
                             connection.Execute(sqlRecord, new
                             {
@@ -118,14 +113,13 @@ namespace SLICE_Website.Data
                                 UserID = userId,
                                 ProductID = item.ProductID,
                                 Qty = item.Qty,
-                                Price = unitPrice, // Save standard item price here for item-level data
+                                Price = unitPrice,
                                 PayMethod = paymentMethod,
                                 RefNum = referenceNumber
                             }, transaction);
                         }
 
-                        // --- STEP 5: FINANCIAL LEDGER (Centralized Income Tracking) ---
-                        // [FIX APPLIED]: Write the actual discounted total to the ledger so the Dashboard sees it
+                        // --- STEP 5: FINANCIAL LEDGER ---
                         string sqlLedger = @"
                             INSERT INTO FinancialLedger (TransactionDate, BranchID, Type, Category, Amount, Description, PaymentMethod, ReferenceNumber)
                             VALUES (GETDATE(), @BranchID, 'Income', 'Sales', @Amount, @Desc, @PayMethod, @RefNum)";
@@ -133,14 +127,13 @@ namespace SLICE_Website.Data
                         connection.Execute(sqlLedger, new
                         {
                             BranchID = branchId,
-                            Amount = finalDiscountedTotal, // <--- Using the true final total
+                            Amount = finalDiscountedTotal,
                             Desc = $"POS Sale ({cart.Count} items)",
                             PayMethod = paymentMethod,
                             RefNum = referenceNumber
                         }, transaction);
 
                         // --- STEP 6: WRITE DIRECTLY TO AUDIT LOG ---
-                        // [FIX APPLIED]: Mention the final discounted total in the audit log for clarity
                         string sqlAudit = @"
                             INSERT INTO AuditLogs (UserID, ActionType, AffectedTable, NewValue, Timestamp, ReferenceNumber)
                             VALUES (@UserID, 'Sale Completed', 'SalesTransactions', @Desc, GETDATE(), @RefNum)";
@@ -152,13 +145,11 @@ namespace SLICE_Website.Data
                             RefNum = referenceNumber
                         }, transaction);
 
-                        // Success! Everything commits to the DB at once.
                         transaction.Commit();
                         return true;
                     }
                     catch (Exception ex)
                     {
-                        // Rollback ensures that if one item fails, NO ingredients are deducted and NO sale is recorded.
                         transaction.Rollback();
                         errorMessage = ex.Message;
                         return false;
@@ -167,102 +158,105 @@ namespace SLICE_Website.Data
             }
         }
 
-        // Fetches only CASH sales for the logged-in user for today
-        public decimal GetTodayExpectedCash(int userId)
+        // =========================================================
+        // 3. GET TODAY'S TRANSACTIONS (Fixed Missing Columns!)
+        // =========================================================
+        public List<TransactionDto> GetTodayTransactions(int branchId)
         {
-            using (var connection = _dbService.GetConnection())
+            using (var conn = _dbService.GetConnection())
             {
-                // NOTE: This still sums based on base unit price. If you want Z-Reading to reflect discounted cash, 
-                // you may need to adjust this to read from FinancialLedger instead of SalesTransactions in the future.
+                // Groups item-level transactions into single order tickets. 
+                // Now includes Time, Item Name, Quantity, and Payment Method!
                 string sql = @"
-                SELECT ISNULL(SUM(QuantitySold * UnitPrice), 0) 
-                FROM SalesTransactions 
-                WHERE UserID = @UserID 
-                AND PaymentMethod = 'Cash' 
-                AND TransactionStatus = 'Completed'
-                AND CAST(TransactionDate AS DATE) = CAST(GETDATE() AS DATE)";
+                    SELECT 
+                        t.ReferenceNumber,
+                        MAX(t.TransactionDate) AS LocalTransactionDate,
+                        SUM(t.QuantitySold * t.UnitPrice) AS TotalAmount,
+                        MAX(t.TransactionStatus) AS Status,
+                        MAX(t.PaymentMethod) AS PaymentMethod,
+                        SUM(t.QuantitySold) AS QuantitySold,
+                        MAX(m.ProductName) AS ProductName
+                    FROM SalesTransactions t
+                    LEFT JOIN MenuItems m ON t.ProductID = m.ProductID
+                    WHERE t.BranchID = @BranchID 
+                    AND CAST(t.TransactionDate AS DATE) = CAST(GETDATE() AS DATE)
+                    GROUP BY t.ReferenceNumber
+                    ORDER BY MAX(t.TransactionDate) DESC";
 
-                return connection.ExecuteScalar<decimal>(sql, new { UserID = userId });
+                return conn.Query<TransactionDto>(sql, new { BranchID = branchId }).ToList();
             }
         }
 
         // =========================================================
-        // 3. FETCH TODAY'S COMPLETED SALES (For Voiding)
+        // 4. VOID TRANSACTION (Fixed Stored Procedure Crash!)
         // =========================================================
-        public List<SaleRecord> GetTodaySales(int branchId)
+        public void VoidTransaction(string refNum)
         {
-            using (var connection = _dbService.GetConnection())
+            using (var conn = _dbService.GetConnection())
             {
-                string sql = @"
-                    SELECT s.SaleID, m.ProductName, s.QuantitySold, 
-                           (s.QuantitySold * s.UnitPrice) as TotalAmount, 
-                           s.ReferenceNumber, s.PaymentMethod, s.TransactionDate, s.TransactionStatus
-                    FROM SalesTransactions s
-                    JOIN MenuItems m ON s.ProductID = m.ProductID
-                    WHERE s.BranchID = @BranchId 
-                      AND s.TransactionStatus = 'Completed' 
-                      AND CAST(s.TransactionDate AS DATE) = CAST(GETDATE() AS DATE)
-                    ORDER BY s.TransactionDate DESC";
-
-                return connection.Query<SaleRecord>(sql, new { BranchId = branchId }).ToList();
-            }
-        }
-
-        // =========================================================
-        // 4. VOID TRANSACTION (Atomic Reversal)
-        // =========================================================
-        public bool VoidSale(int saleId, int managerId, string reason, out string errorMessage)
-        {
-            errorMessage = string.Empty;
-            using (var connection = _dbService.GetConnection())
-            {
-                connection.Open();
-                using (var transaction = connection.BeginTransaction())
+                conn.Open();
+                using (var trans = conn.BeginTransaction())
                 {
                     try
                     {
-                        // 1. Get original sale details
-                        var sale = connection.QuerySingleOrDefault<dynamic>(
-                            "SELECT BranchID, ProductID, QuantitySold, (QuantitySold * UnitPrice) as TotalAmount, ReferenceNumber, PaymentMethod FROM SalesTransactions WHERE SaleID = @SaleID",
-                            new { SaleID = saleId }, transaction);
+                        // 1. Verify the transaction exists
+                        var items = conn.Query("SELECT ProductID, QuantitySold, BranchID, TransactionStatus, UnitPrice FROM SalesTransactions WHERE ReferenceNumber = @Ref", new { Ref = refNum }, trans).ToList();
 
-                        if (sale == null) throw new Exception("Transaction not found.");
+                        if (!items.Any()) throw new Exception("Transaction not found.");
+                        if (items.First().TransactionStatus == "Voided") throw new Exception("Transaction is already voided.");
 
-                        // 2. Mark as Voided
-                        connection.Execute("UPDATE SalesTransactions SET TransactionStatus = 'Cancelled' WHERE SaleID = @SaleID", new { SaleID = saleId }, transaction);
+                        // 2. Mark items as Voided
+                        conn.Execute("UPDATE SalesTransactions SET TransactionStatus = 'Voided' WHERE ReferenceNumber = @Ref", new { Ref = refNum }, trans);
 
-                        // 3. Return Ingredients to Inventory
-                        var ingredients = connection.Query<Recipe>("SELECT ItemID as IngredientID, RequiredQty FROM BillOfMaterials WHERE ProductID = @ProductID", new { ProductID = sale.ProductID }, transaction).AsList();
-                        foreach (var ing in ingredients)
+                        // 3. Restore Ingredients (Replaced sp_RestoreIngredients with inline SQL)
+                        foreach (var item in items)
                         {
-                            connection.Execute(
-                                "UPDATE BranchInventory SET CurrentQuantity = CurrentQuantity + @AmountToAdd WHERE BranchID = @BranchID AND ItemID = @ItemID",
-                                new { AmountToAdd = (ing.RequiredQty * sale.QuantitySold), BranchID = sale.BranchID, ItemID = ing.IngredientID }, transaction);
+                            string sqlRestore = @"
+                                UPDATE bi
+                                SET bi.CurrentQuantity = bi.CurrentQuantity + (bom.RequiredQty * @Quantity)
+                                FROM BranchInventory bi
+                                INNER JOIN BillOfMaterials bom ON bi.ItemID = bom.ItemID
+                                WHERE bom.ProductID = @ProductID AND bi.BranchID = @BranchID";
+
+                            conn.Execute(sqlRestore, new { ProductID = item.ProductID, Quantity = item.QuantitySold, BranchID = item.BranchID }, trans);
                         }
 
-                        // 4. Issue a Refund in the Financial Ledger
-                        connection.Execute(@"
-                            INSERT INTO FinancialLedger (TransactionDate, BranchID, Type, Category, Amount, Description, PaymentMethod, ReferenceNumber)
-                            VALUES (GETDATE(), @BranchID, 'Expense', 'Refund', @Amount, @Desc, @PayMethod, @RefNum)",
-                            new { BranchID = sale.BranchID, Amount = sale.TotalAmount, Desc = $"VOIDED SALE: {reason}", PayMethod = sale.PaymentMethod, RefNum = sale.ReferenceNumber }, transaction);
+                        // 4. Reverse Financial Ledger
+                        decimal grandTotal = items.Sum(i => (decimal)i.QuantitySold * (decimal)i.UnitPrice);
+                        string sqlLedger = @"
+                            INSERT INTO FinancialLedger (TransactionDate, BranchID, Type, Category, Amount, Description, ReferenceNumber)
+                            VALUES (GETDATE(), @BranchID, 'Expense', 'Refund', @Amount, 'VOIDED SALE', @Ref)";
 
-                        // 5. Log the Manager Override
-                        connection.Execute(@"
-                            INSERT INTO AuditLogs (UserID, ActionType, AffectedTable, NewValue, Timestamp, ReferenceNumber)
-                            VALUES (@UserID, 'MANAGER OVERRIDE: VOID', 'SalesTransactions', @Desc, GETDATE(), @RefNum)",
-                            new { UserID = managerId, Desc = $"Voided Sale #{saleId}. Reason: {reason}. Refunded ₱{sale.TotalAmount:N2}", RefNum = sale.ReferenceNumber }, transaction);
+                        conn.Execute(sqlLedger, new { BranchID = items.First().BranchID, Amount = grandTotal, Ref = refNum }, trans);
 
-                        transaction.Commit();
-                        return true;
+                        trans.Commit();
                     }
-                    catch (Exception ex)
+                    catch
                     {
-                        transaction.Rollback();
-                        errorMessage = ex.Message;
-                        return false;
+                        trans.Rollback();
+                        throw;
                     }
                 }
             }
         }
+    }
+
+    // Smart DTO to perfectly match the UI
+    public class TransactionDto
+    {
+        public string ReferenceNumber { get; set; } = string.Empty;
+        public DateTime? LocalTransactionDate { get; set; }
+        public string ProductName { get; set; } = string.Empty;
+        public int? QuantitySold { get; set; }
+        public decimal? TotalAmount { get; set; }
+        public string PaymentMethod { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+
+        // UI Mapping Properties
+        public DateTime DisplayDate => LocalTransactionDate ?? DateTime.Now;
+        public decimal DisplayAmount => TotalAmount ?? 0m;
+        public int DisplayQty => QuantitySold ?? 0;
+        public string DisplayProduct => !string.IsNullOrEmpty(ProductName) ? ProductName : "Order Item(s)";
+        public string DisplayMethod => !string.IsNullOrEmpty(PaymentMethod) ? PaymentMethod : "Cash";
     }
 }

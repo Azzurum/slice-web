@@ -1,0 +1,478 @@
+﻿@page "/review-feedback"
+@inject HttpClient Http
+@inject IJSRuntime JS
+
+<PageTitle>Review Feedback | S.L.I.C.E.</PageTitle>
+
+<div class="system-background">
+
+    @* MAIN GRID (Margin="40") *@
+    <div class="main-grid">
+        
+        @* ROW 0: HEADER (Margin="0,0,0,25") *@
+        <div class="header-stack">
+            <div class="main-title">Feedback Board</div>
+            <div class="sub-title">Review, categorize, and act on suggestions from your customers.</div>
+        </div>
+
+        @* ROW 1: KANBAN BOARD (1fr 25px 1fr 25px 1fr) *@
+        <div class="kanban-layout">
+            
+            @* COLUMN 0: PENDING TRIAGE *@
+            <div class="kanban-col">
+                <div class="col-header-stack">
+                    <div class="col-dot" style="background-color: #E74C3C;"></div>
+                    <div class="col-title">PENDING TRIAGE</div>
+                </div>
+                <div class="scroll-viewer">
+                    @foreach (var item in PendingList)
+                    {
+                        <button class="kanban-card" @onclick="() => OpenDrawer(item)">
+                            <div class="card-accent"></div>
+                            <div class="card-content">
+                                <div class="card-row-0">
+                                    <div class="cat-badge">@item.SuggestionType</div>
+                                    <div class="status-text">@item.Status</div>
+                                </div>
+                                <div class="card-row-1">@item.Description</div>
+                                <div class="card-row-2">
+                                    <div class="user-icon-box"><i class="fa fa-user user-icon"></i></div>
+                                    <div class="submitter-name">@item.SubmitterName</div>
+                                    <div class="bullet"> • </div>
+                                    <div class="submitter-date">@item.SubmittedDate.ToString("MMM dd")</div>
+                                </div>
+                            </div>
+                        </button>
+                    }
+                </div>
+            </div>
+
+            @* COLUMN 1: SPACER (Width="25") *@
+            <div class="kanban-spacer"></div>
+
+            @* COLUMN 2: UNDER REVIEW *@
+            <div class="kanban-col">
+                <div class="col-header-stack">
+                    <div class="col-dot" style="background-color: #F1C40F;"></div>
+                    <div class="col-title">UNDER REVIEW</div>
+                </div>
+                <div class="scroll-viewer">
+                    @foreach (var item in UnderReviewList)
+                    {
+                        <button class="kanban-card" @onclick="() => OpenDrawer(item)">
+                            <div class="card-accent"></div>
+                            <div class="card-content">
+                                <div class="card-row-0">
+                                    <div class="cat-badge">@item.SuggestionType</div>
+                                    <div class="status-text">@item.Status</div>
+                                </div>
+                                <div class="card-row-1">@item.Description</div>
+                                <div class="card-row-2">
+                                    <div class="user-icon-box"><i class="fa fa-user user-icon"></i></div>
+                                    <div class="submitter-name">@item.SubmitterName</div>
+                                    <div class="bullet"> • </div>
+                                    <div class="submitter-date">@item.SubmittedDate.ToString("MMM dd")</div>
+                                </div>
+                            </div>
+                        </button>
+                    }
+                </div>
+            </div>
+
+            @* COLUMN 3: SPACER (Width="25") *@
+            <div class="kanban-spacer"></div>
+
+            @* COLUMN 4: RESOLVED *@
+            <div class="kanban-col">
+                <div class="col-header-stack">
+                    <div class="col-dot" style="background-color: #27AE60;"></div>
+                    <div class="col-title">RESOLVED</div>
+                </div>
+                <div class="scroll-viewer">
+                    @foreach (var item in ResolvedList)
+                    {
+                        <button class="kanban-card" @onclick="() => OpenDrawer(item)">
+                            <div class="card-accent"></div>
+                            <div class="card-content">
+                                <div class="card-row-0">
+                                    <div class="cat-badge">@item.SuggestionType</div>
+                                    <div class="status-text">@item.Status</div>
+                                </div>
+                                <div class="card-row-1">@item.Description</div>
+                                <div class="card-row-2">
+                                    <div class="user-icon-box"><i class="fa fa-user user-icon"></i></div>
+                                    <div class="submitter-name">@item.SubmitterName</div>
+                                    <div class="bullet"> • </div>
+                                    <div class="submitter-date">@item.SubmittedDate.ToString("MMM dd")</div>
+                                </div>
+                            </div>
+                        </button>
+                    }
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    @* ========================================== *@
+    @* DRAWER DIMMER (Background="#80000000")       *@
+    @* ========================================== *@
+    <div class="drawer-dimmer @(isDrawerOpen ? "dimmer-visible" : "")" @onclick="CloseDrawerCommand"></div>
+
+    @* ========================================== *@
+    @* DETAIL DRAWER (Width="480")                  *@
+    @* ========================================== *@
+    <div class="detail-drawer @(isDrawerOpen ? "drawer-open" : "") shadow-drawer">
+        
+        @if (SelectedSuggestion != null)
+        {
+            <div class="drawer-grid">
+                
+                @* ROW 0: Header (Margin="0,0,0,30") *@
+                <div class="drawer-header-grid">
+                    <div class="drawer-title">Review Details</div>
+                    <button class="btn-close-drawer" @onclick="CloseDrawerCommand">
+                        <i class="fa fa-times" style="color: #7F8C8D; font-size: 14px;"></i>
+                    </button>
+                </div>
+
+                @* ROW 1: ScrollViewer *@
+                <div class="drawer-scroll-viewer">
+                    <div class="drawer-stack">
+                        
+                        <div class="lbl-header">CATEGORY</div>
+                        <div class="drawer-cat-box">
+                            <div class="drawer-cat-text">@SelectedSuggestion.SuggestionType</div>
+                        </div>
+
+                        <div class="lbl-header">CUSTOMER FEEDBACK</div>
+                        <div class="drawer-feedback-box">
+                            @SelectedSuggestion.Description
+                        </div>
+
+                        <div class="lbl-header">EXECUTIVE DECISION NOTES</div>
+                        <textarea class="drawer-notes-input" @bind="EditNotes" @bind:event="oninput"></textarea>
+
+                    </div>
+                </div>
+
+                @* ROW 2: Action Buttons (Margin="0,25,0,0") *@
+                <div class="drawer-action-grid">
+                    <button class="btn-decision bg-review" @onclick="ReviewCommand" title="Mark as Under Review">
+                        <i class="fa fa-eye" style="font-size: 16px;"></i>
+                    </button>
+                    <div class="action-spacer"></div>
+                    <button class="btn-decision bg-reject" @onclick="RejectCommand">REJECT</button>
+                    <div class="action-spacer"></div>
+                    <button class="btn-decision bg-approve" @onclick="ApproveCommand">APPROVE</button>
+                </div>
+
+                @* SUCCESS FLASH (Grid.RowSpan="3", Background="#F5FFFFFF") *@
+                <div class="success-flash @(isActionSuccess ? "flash-visible" : "")">
+                    <div class="success-stack">
+                        <div class="success-circle">
+                            <i class="fa fa-check" style="color: white; font-size: 35px;"></i>
+                        </div>
+                        <div class="success-text">DECISION SAVED</div>
+                    </div>
+                </div>
+
+            </div>
+        }
+    </div>
+
+</div>
+
+<style>
+    /* SYSTEM BACKGROUND */
+    .system-background {
+        background-color: white;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        height: calc(100vh - 60px);
+        position: relative;
+        overflow: hidden; /* ClipToBounds="True" */
+    }
+
+    /* MAIN GRID (Margin="40") */
+    .main-grid {
+        margin: 40px;
+        display: flex;
+        flex-direction: column;
+        height: calc(100% - 80px);
+    }
+
+    /* ROW 0: HEADER (Margin="0,0,0,25") */
+    .header-stack { display: flex; flex-direction: column; margin: 0 0 25px 0; }
+    .main-title { font-size: 26px; font-weight: 900; color: #2C3E50; } /* FontWeight="Black" */
+    .sub-title { font-size: 14px; font-weight: 400; color: #95A5A6; margin: 2px 0 0 0; }
+
+    /* ROW 1: KANBAN LAYOUT */
+    .kanban-layout {
+        display: grid;
+        grid-template-columns: 1fr 25px 1fr 25px 1fr;
+        flex-grow: 1;
+        overflow: hidden;
+    }
+
+    .kanban-spacer { width: 25px; }
+
+    /* COLUMNS */
+    .kanban-col {
+        background-color: #F4F6F7;
+        border-radius: 12px;
+        padding: 15px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* COLUMN HEADER (Margin="5,0,0,15") */
+    .col-header-stack { display: flex; align-items: center; margin: 5px 0 15px 0; }
+    .col-dot { width: 8px; height: 8px; border-radius: 4px; margin: 0 8px 0 0; }
+    .col-title { font-size: 13px; font-weight: 900; color: #34495E; } /* FontWeight="Black" */
+
+    /* SCROLL VIEWER */
+    .scroll-viewer { overflow-y: auto; flex-grow: 1; min-height: 300px; }
+    .scroll-viewer::-webkit-scrollbar { display: none; } /* VerticalScrollBarVisibility="Hidden" */
+
+    /* KANBAN CARD (Style="KanbanCard") */
+    .kanban-card {
+        background-color: white;
+        margin: 0 0 12px 0;
+        cursor: pointer;
+        border: none;
+        width: 100%;
+        text-align: left;
+        position: relative;
+        border-radius: 8px;
+        /* DropShadowEffect BlurRadius="8" Color="#BDC3C7" ShadowDepth="2" Opacity="0.2" */
+        box-shadow: 0 2px 8px rgba(189, 195, 199, 0.2);
+        transition: background-color 0.1s, transform 0.1s;
+    }
+    
+    /* Triggers */
+    .kanban-card:hover { background-color: #FAFCFC; transform: translateY(-2px); }
+
+    /* ACCENT BAR (Width="4", CornerRadius="8,0,0,8", Opacity="0.3") */
+    .card-accent {
+        position: absolute; left: 0; top: 0; bottom: 0;
+        width: 4px; border-radius: 8px 0 0 8px;
+        background-color: rgba(189, 195, 199, 0.3); /* #BDC3C7 at 0.3 */
+    }
+
+    .card-content { padding: 15px; }
+
+    /* CARD ROW 0 (Margin="0,0,0,12") */
+    .card-row-0 { display: flex; justify-content: space-between; align-items: center; margin: 0 0 12px 0; }
+    .cat-badge { background-color: #F4F6F7; border-radius: 4px; padding: 4px 8px; font-size: 11px; font-weight: 700; color: #34495E; } /* FontWeight="Bold" */
+    .status-text { font-size: 10px; font-weight: 700; color: #BDC3C7; } /* FontWeight="Bold" */
+
+    /* CARD ROW 1 (Margin="0,0,0,15", MaxHeight="54", LineHeight="18") */
+    .card-row-1 {
+        font-size: 13px; color: #2C3E50; margin: 0 0 15px 0;
+        line-height: 18px; max-height: 54px;
+        display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; /* TextTrimming="CharacterEllipsis" */
+    }
+
+    /* CARD ROW 2 */
+    .card-row-2 { display: flex; align-items: center; }
+    .user-icon-box { background-color: #EAECEE; width: 20px; height: 20px; border-radius: 10px; margin: 0 8px 0 0; display: flex; align-items: center; justify-content: center; }
+    .user-icon { font-size: 10px; color: #95A5A6; }
+    .submitter-name { font-size: 12px; font-weight: 600; color: #7F8C8D; } /* FontWeight="SemiBold" */
+    .bullet { font-size: 12px; color: #BDC3C7; margin: 0; }
+    .submitter-date { font-size: 11px; color: #95A5A6; }
+
+    /* ========================= */
+    /* DRAWER DIMMER (#80000000) */
+    /* ========================= */
+    .drawer-dimmer {
+        position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+        background-color: rgba(0, 0, 0, 0.5);
+        opacity: 0; visibility: hidden; transition: opacity 0.2s, visibility 0.2s;
+        z-index: 100;
+    }
+    .dimmer-visible { opacity: 1; visibility: visible; }
+
+    /* ========================= */
+    /* DETAIL DRAWER (Width="480") */
+    /* ========================= */
+    .detail-drawer {
+        position: absolute; top: 0; bottom: 0; right: 0;
+        width: 480px; background-color: white; z-index: 101;
+        /* DropShadowEffect BlurRadius="50" Color="Black" ShadowDepth="-5" Opacity="0.2" */
+        box-shadow: -5px 0 50px rgba(0, 0, 0, 0.2);
+        /* TranslateTransform X="500" to "0" */
+        transform: translateX(500px); 
+        transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94); /* QuadraticEase EaseOut approx */
+    }
+    .drawer-open { transform: translateX(0); }
+
+    /* DRAWER INNER GRID (Margin="40") */
+    .drawer-grid { margin: 40px; display: flex; flex-direction: column; height: calc(100% - 80px); position: relative; }
+
+    /* DRAWER ROW 0 (Margin="0,0,0,30") */
+    .drawer-header-grid { display: flex; justify-content: space-between; align-items: center; margin: 0 0 30px 0; }
+    .drawer-title { font-size: 20px; font-weight: 900; color: #2C3E50; } /* FontWeight="Black" */
+    
+    /* CLOSE BUTTON */
+    .btn-close-drawer {
+        background-color: #F4F6F7; width: 32px; height: 32px; border-radius: 16px;
+        border: none; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    }
+
+    /* DRAWER ROW 1 */
+    .drawer-scroll-viewer { overflow-y: auto; flex-grow: 1; }
+    .drawer-stack { margin: 0 5px 0 0; display: flex; flex-direction: column; }
+
+    /* DRAWER LABELS */
+    .lbl-header { font-size: 11px; font-weight: 700; color: #95A5A6; margin: 0 0 8px 0; } /* FontWeight="Bold" */
+    
+    /* CATEGORY BOX (Margin="0,0,0,25") */
+    .drawer-cat-box { background-color: #EBF5FB; border-radius: 6px; padding: 8px 12px; margin: 0 0 25px 0; align-self: flex-start; }
+    .drawer-cat-text { font-size: 13px; font-weight: 700; color: #2980B9; }
+
+    /* FEEDBACK BOX (BorderThickness="4,0,0,0", Padding="15,5,0,5", Margin="0,0,0,35") */
+    .drawer-feedback-box {
+        border-left: 4px solid #EAECEE; padding: 5px 0 5px 15px; margin: 0 0 35px 0;
+        font-size: 15px; color: #34495E; line-height: 24px;
+    }
+
+    /* NOTES BOX */
+    .drawer-notes-input {
+        height: 150px; background-color: #F8F9F9; border: 1px solid #EAECEE; border-radius: 8px;
+        padding: 15px; font-size: 14px; color: #2C3E50; outline: none; resize: none; font-family: 'Segoe UI';
+    }
+
+    /* DRAWER ROW 2: ACTION GRID (Margin="0,25,0,0") */
+    .drawer-action-grid {
+        margin: 25px 0 0 0; display: grid;
+        grid-template-columns: 1fr 15px 1fr 15px 1fr;
+    }
+    .action-spacer { width: 15px; }
+
+    .btn-decision { height: 50px; border: none; border-radius: 8px; color: white; font-weight: 700; font-size: 14px; cursor: pointer; } /* FontWeight="Bold" */
+    .bg-review { background-color: #F1C40F; }
+    .bg-reject { background-color: #E74C3C; }
+    .bg-approve { background-color: #27AE60; }
+
+    /* SUCCESS FLASH (Grid.RowSpan="3", Background="#F5FFFFFF" ~ rgba(255,255,255,0.96)) */
+    .success-flash {
+        position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+        background-color: rgba(255, 255, 255, 0.96);
+        display: flex; align-items: center; justify-content: center;
+        opacity: 0; visibility: hidden; transition: opacity 0.1s, visibility 0.2s;
+    }
+    .flash-visible { opacity: 1; visibility: visible; }
+    
+    .success-stack { display: flex; flex-direction: column; align-items: center; }
+    .success-circle { background-color: #27AE60; width: 80px; height: 80px; border-radius: 40px; margin: 0 0 15px 0; display: flex; align-items: center; justify-content: center; }
+    .success-text { font-size: 18px; font-weight: 900; color: #27AE60; text-align: center; } /* FontWeight="Black" */
+
+</style>
+
+@code {
+    private List<CustomerSuggestion> PendingList = new();
+    private List<CustomerSuggestion> UnderReviewList = new();
+    private List<CustomerSuggestion> ResolvedList = new();
+
+    private CustomerSuggestion? SelectedSuggestion;
+    private string EditNotes = "";
+    
+    private bool isDrawerOpen = false;
+    private bool isActionSuccess = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        try
+        {
+            var all = await Http.GetFromJsonAsync<List<CustomerSuggestion>>("api/feedback");
+            if (all != null)
+            {
+                PendingList.Clear();
+                UnderReviewList.Clear();
+                ResolvedList.Clear();
+
+                foreach (var item in all)
+                {
+                    if (item.Status == "Pending") PendingList.Add(item);
+                    else if (item.Status == "Under Review") UnderReviewList.Add(item);
+                    else ResolvedList.Add(item);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Error loading suggestions: {ex.Message}");
+        }
+        StateHasChanged();
+    }
+
+    private void OpenDrawer(CustomerSuggestion suggestion)
+    {
+        SelectedSuggestion = suggestion;
+        EditNotes = suggestion.OwnerNotes ?? "";
+        isDrawerOpen = true;
+    }
+
+    private void CloseDrawerCommand()
+    {
+        isDrawerOpen = false;
+    }
+
+    private async Task ReviewCommand() => await ProcessDecision("Under Review");
+    private async Task ApproveCommand() => await ProcessDecision("Approved");
+    private async Task RejectCommand() => await ProcessDecision("Rejected");
+
+    private async Task ProcessDecision(string newStatus)
+    {
+        if (SelectedSuggestion == null) return;
+
+        try
+        {
+            var request = new { NewStatus = newStatus, Notes = EditNotes };
+            var response = await Http.PutAsJsonAsync($"api/feedback/{SelectedSuggestion.SuggestionID}/status", request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                // Trigger the "Green Success Flash" inside the drawer
+                isActionSuccess = true;
+                StateHasChanged();
+                await Task.Delay(600); // Wait just enough to see it
+                
+                isActionSuccess = false;
+                
+                // Slide drawer away
+                isDrawerOpen = false;
+                StateHasChanged();
+                await Task.Delay(300); // Wait for XAML/CSS transform animation to finish
+
+                // Refresh Data - This triggers the visual "Column Jump"
+                await LoadData();
+            }
+            else
+            {
+                await JS.InvokeVoidAsync("alert", $"Failed to update status.");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Network Error: {ex.Message}");
+        }
+    }
+
+    // Mapped UI model
+    public class CustomerSuggestion
+    {
+        public int SuggestionID { get; set; }
+        public string SuggestionType { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public string OwnerNotes { get; set; } = string.Empty;
+        public string SubmitterName { get; set; } = string.Empty;
+        public DateTime SubmittedDate { get; set; }
+    }
+}

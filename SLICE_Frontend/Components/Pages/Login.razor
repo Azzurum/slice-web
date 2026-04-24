@@ -1,0 +1,258 @@
+﻿@page "/login"
+@layout EmptyLayout
+@using SLICE_Frontend.Auth
+@using Microsoft.AspNetCore.Components.Authorization
+@using SLICE_Frontend.Components.Dialogs
+@inject HttpClient Http
+@inject NavigationManager Nav
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JS
+
+<PageTitle>S.L.I.C.E. Arcade Login</PageTitle>
+
+<div class="login-container overflow-hidden">
+    
+    <div class="scrolling-pattern"></div>
+
+    <div class="top-nav p-4 d-flex justify-content-end">
+        @* WIRED UP: Uses the C# ExitSystem method for browser safety *@
+        <button class="btn-exit shadow-sm" @onclick="ExitSystem">EXIT SYSTEM</button>
+    </div>
+
+    <div class="d-flex justify-content-center align-items-center flex-column" style="height: 80vh; z-index: 10; position: relative;">
+        
+        <div class="login-card-wrapper">
+            <div class="card-back-shadow"></div>
+
+            <div class="login-card p-5 text-center">
+                <div class="logo-area mb-3">
+                    <img src="images/Logo.png" class="floating-logo" />
+                </div>
+
+                <h2 class="fw-black text-pop-black mb-1">READY TO COOK?</h2>
+                <p class="text-secondary fw-semibold mb-5" style="font-size: 14px;">Log in to start your shift!</p>
+
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger fw-bold py-2 mb-3 shake-err" style="font-size: 12px; border-radius: 8px;">
+                        @errorMessage
+                    </div>
+                }
+
+                <div class="form-group text-start mb-4">
+                    <label class="pop-label">USERNAME</label>
+                    <input type="text" class="pop-input" @bind="username" @bind:event="oninput" @onkeyup="HandleKeyPress" />
+                </div>
+
+                <div class="form-group text-start mb-2">
+                    <label class="pop-label">PASSWORD</label>
+                    <div class="position-relative">
+                        <input type="@passwordInputType" class="pop-input pe-5" @bind="password" @bind:event="oninput" @onkeyup="HandleKeyPress" />
+                        <button class="btn-toggle-eye" @onclick="TogglePassword" type="button">
+                            <i class="fa @(isPasswordVisible ? "fa-eye-slash" : "fa-eye")"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="text-end mb-5">
+                    @* WIRED UP: Opens the Forgot Password Modal *@
+                    <button type="button" class="forgot-link bg-transparent border-0 p-0" @onclick="OpenForgotModal">Forgot Password?</button>
+                </div>
+
+                <button class="btn-lets-go w-100" @onclick="HandleLogin" disabled="@isLoading">
+                    @if (isLoading) { <i class="fa fa-spinner fa-spin"></i> } else { <span>LET'S GO!</span> }
+                </button>
+            </div>
+        </div>
+
+        <div class="mt-5 text-white opacity-75 fw-semibold" style="font-size: 12px; letter-spacing: 1px;">
+            S.L.I.C.E. SYSTEM v1.0
+        </div>
+    </div>
+</div>
+
+@* WIRED UP: The Forgot Password Modal Component *@
+<ForgotPasswordModal @bind-IsVisible="showForgotModal" />
+
+<style>
+    :root { 
+        --pop-red: #FF4757; 
+        --pop-bg-red: #FF4D4D; /* The base background color from your WPF */
+        --pop-yellow: #FFD05B; 
+        --pop-black: #2D2D2D; 
+        --pop-shadow: #C49F3A;
+    }
+
+    .login-container { 
+        background-color: var(--pop-bg-red); 
+        height: 100vh; width: 100vw; 
+        position: fixed; top: 0; left: 0; 
+        z-index: 10;
+        font-family: 'Segoe UI Black', sans-serif;
+    }
+
+    /* --- THE PIZZA PATTERN: Larger & Seamless --- */
+    .scrolling-pattern {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        
+        /* 1. We modified the SVG Path to fill 90% of the tile (50,5 L 95,95 L 5,95).
+           2. We used %23FF3333 for the red color.
+        */
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cpath d='M 50,5 L 95,95 L 5,95 Z' fill='%23FF3333' fill-opacity='0.7'/%3E%3Ccircle cx='50' cy='65' r='6' fill='%23FF3333' fill-opacity='0.7'/%3E%3Ccircle cx='62' cy='75' r='6' fill='%23FF3333' fill-opacity='0.7'/%3E%3Ccircle cx='38' cy='75' r='6' fill='%23FF3333' fill-opacity='0.7'/%3E%3C/svg%3E");
+        
+        /* 100px matches the SVG width exactly for a perfect loop */
+        background-size: 100px 100px;
+        
+        /* Linear animation with -100px loop prevents the 'teleporting' skip */
+        animation: pizzaScroll 2s linear infinite;
+        opacity: 0.9;
+    }
+
+    @@keyframes pizzaScroll {
+        from { background-position: 0 0; }
+        to { background-position: -100px -100px; }
+    }
+
+    /* --- THE SEE-THROUGH EXIT BUTTON --- */
+    .btn-exit {
+        background: rgba(255, 255, 255, 0.85); /* Semi-transparent white */
+        backdrop-filter: blur(4px); /* Makes it look 'see-through' but frosted */
+        color: var(--pop-red); 
+        border: none; 
+        border-radius: 40px;
+        padding: 15px 50px; 
+        font-weight: 900; 
+        font-size: 25px; /* Matches your WPF font size */
+        transition: 0.2s;
+        box-shadow: 0 4px 0 rgba(0,0,0,0.1);
+        text-transform: uppercase;
+    }
+    
+    .btn-exit:hover { 
+        background: rgba(255, 255, 255, 1.0); 
+        transform: translateY(2px); 
+        box-shadow: 0 2px 0 rgba(0,0,0,0.1); 
+    }
+
+    /* --- THE LOGO --- */
+    .floating-logo { 
+        width: 150px; /* Sizing it up to match the system's prominence */
+        filter: drop-shadow(0 4px 0 var(--pop-yellow));
+        animation: logoFloat 1s ease-in-out infinite alternate;
+    }
+    @@keyframes logoFloat { 
+        from { transform: translateY(0); } 
+        to { transform: translateY(-10px); } 
+    }
+
+    @@keyframes arcadeScroll { from { transform: translate(0, 0); } to { transform: translate(80px, 80px); } }
+
+    .login-card-wrapper { position: relative; width: 440px; }
+    
+    .card-back-shadow { 
+        position: absolute; top: 15px; left: 15px; right: -15px; bottom: -15px;
+        background: black; opacity: 0.2; border-radius: 20px;
+    }
+
+    .login-card { 
+        background: white; border: 4px solid var(--pop-black); border-radius: 20px; 
+        position: relative; z-index: 5;
+        animation: cardPop 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    @@keyframes cardPop { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+    .pop-label { font-size: 12px; color: var(--pop-red); font-weight: 900; margin-bottom: 8px; display: block; }
+    
+    .pop-input { 
+        width: 100%; height: 55px; background: #F7F7F7; border: 2px solid #E0E0E0; 
+        border-radius: 12px; padding: 0 18px; font-weight: 600; font-size: 16px;
+        transition: 0.2s; outline: none;
+    }
+    .pop-input:focus { border-color: var(--pop-red); background: white; box-shadow: 0 0 0 4px rgba(255, 71, 87, 0.1); }
+
+    .btn-toggle-eye { 
+        position: absolute; right: 15px; top: 50%; transform: translateY(-50%);
+        border: none; background: transparent; color: #BDBDBD; font-size: 18px; 
+    }
+    .btn-toggle-eye:hover { color: var(--pop-red); }
+
+    .forgot-link { color: #3498DB; font-weight: 700; font-size: 13px; text-decoration: none; }
+    .forgot-link:hover { text-decoration: underline; color: #2980B9; }
+
+    .btn-lets-go { 
+        background: var(--pop-yellow); color: var(--pop-black); height: 65px; 
+        border-radius: 12px; border: none; font-weight: 900; font-size: 20px; 
+        box-shadow: 0 6px 0 var(--pop-shadow); transition: 0.1s; margin-top: 10px;
+    }
+    .btn-lets-go:hover { background: #FFE082; transform: translateY(-2px); box-shadow: 0 8px 0 var(--pop-shadow); }
+    .btn-lets-go:active { transform: translateY(6px); box-shadow: 0 0 0 var(--pop-shadow); }
+
+    .shake-err { animation: shake 0.4s; }
+    @@keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+</style>
+
+@code {
+    private string username = "";
+    private string password = "";
+    private string errorMessage = "";
+    private bool isLoading = false;
+    private bool isPasswordVisible = false;
+    private string passwordInputType => isPasswordVisible ? "text" : "password";
+    
+    // Modal State
+    private bool showForgotModal = false;
+
+    private void TogglePassword() => isPasswordVisible = !isPasswordVisible;
+
+    private void OpenForgotModal() => showForgotModal = true;
+
+    private async Task HandleKeyPress(KeyboardEventArgs e) {
+        if (e.Key == "Enter") await HandleLogin();
+    }
+
+    private async Task HandleLogin() {
+        errorMessage = "";
+        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password)) {
+            errorMessage = "Hey! We need your ID and Password to get cooking!";
+            return;
+        }
+
+        isLoading = true;
+        StateHasChanged();
+
+        try {
+            var request = new { Username = username, Password = password };
+            var response = await Http.PostAsJsonAsync("api/auth/login", request);
+
+            if (response.IsSuccessStatusCode) {
+                var user = await response.Content.ReadFromJsonAsync<SLICE_Frontend.Auth.AuthUser>();
+                if (user != null) {
+                    ((CustomAuthStateProvider)AuthStateProvider).LogIn(user);
+                    Nav.NavigateTo("/");
+                }
+            } else {
+                errorMessage = await response.Content.ReadAsStringAsync();
+            }
+        } catch (Exception ex) {
+            errorMessage = "API Error: Make sure your SLICE_Website project is running!";
+        }
+        
+        isLoading = false;
+        StateHasChanged();
+    }
+
+    private async Task ExitSystem()
+    {
+        // 1. Attempt to natively close the browser tab.
+        await JS.InvokeVoidAsync("window.close");
+
+        // 2. Fallback: If the browser blocks window.close() because of security rules, 
+        // completely wipe the HTML body so the system is locked visually.
+        await JS.InvokeVoidAsync("document.write", "<div style='height: 100vh; width: 100vw; background: #2D2D2D; color: white; display: flex; justify-content: center; align-items: center; font-family: sans-serif;'><h1 style='text-align: center;'>SYSTEM EXITED.<br/><br/><span style='font-size: 20px; color: #9E9E9E;'>It is now safe to close this browser tab.</span></h1></div>");
+    }
+}

@@ -1,6 +1,5 @@
 ﻿<!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -9,15 +8,23 @@
     <link rel="stylesheet" href="@Assets["lib/bootstrap/dist/css/bootstrap.min.css"]" />
     <link rel="stylesheet" href="@Assets["app.css"]" />
     <link rel="stylesheet" href="@Assets["SLICE_Frontend.styles.css"]" />
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    
     <ImportMap />
     <link rel="icon" type="image/png" href="favicon.png" />
-    <HeadOutlet />
+    
+    @* THE FIX: Global Interactivity for the Head *@
+    <HeadOutlet @rendermode="InteractiveServer" />
 </head>
-
 <body>
-    <Routes />
+    @* THE FIX: Global Interactivity for the Router *@
+    <Routes @rendermode="InteractiveServer" />
     <ReconnectModal />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
+    
+    @* THE FIX: Corrected ApexCharts Imports *@
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <script src="_content/Blazor-ApexCharts/js/blazor-apexcharts.js" type="module"></script>
 </body>
-
 </html>

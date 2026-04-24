@@ -1,0 +1,135 @@
+﻿@if (IsVisible)
+{
+    <div class="modal-overlay" @onclick="Cancel">
+        <div class="about-window" @onclick:stopPropagation="true">
+            
+            @* LEFT COLUMN: BRANDING (Width="220") *@
+            <div class="about-left">
+                <div class="d-flex flex-column align-items-center justify-content-center text-center">
+                    <i class="fa fa-pie-chart mb-4" style="color: #E67E22; font-size: 60px;"></i>
+                    
+                    <div class="brand-title">S.L.I.C.E.</div>
+                    <div class="brand-sub">ENTERPRISE</div>
+                    
+                    <div class="brand-separator"></div>
+                </div>
+            </div>
+
+            @* RIGHT COLUMN: DETAILS (Width="*") *@
+            <div class="about-right">
+                
+                @* ROW 0: Header *@
+                <div>
+                    <div class="info-lbl">SYSTEM INFORMATION</div>
+                    <div class="version-txt">Version 1.0.0 (RC)</div>
+                </div>
+
+                @* ROW 1: Body (Centered Vertically) *@
+                <div class="about-body">
+                    
+                    <div class="info-row">
+                        <div class="icon-col"><i class="fa fa-code"></i></div>
+                        <div>
+                            <div class="info-title">Developed By</div>
+                            <div class="info-val-bold">S.L.I.C.E. Development Team</div>
+                        </div>
+                    </div>
+
+                    <div class="info-row">
+                        <div class="icon-col"><i class="fa fa-graduation-cap"></i></div>
+                        <div>
+                            <div class="info-title">Project Context</div>
+                            <div class="info-val-semi">BS Information Technology Project</div>
+                        </div>
+                    </div>
+
+                    <div class="info-row mb-0">
+                        <div class="icon-col"><i class="fa fa-institution"></i></div>
+                        <div class="viewbox-container">
+                            <div class="info-title">Institution</div>
+                            <div class="info-val-semi">San Sebastian College-Recoletos de Cavite</div>
+                        </div>
+                    </div>
+
+                </div>
+
+                @* ROW 2: Footer *@
+                <div class="about-footer">
+                    <div class="copyright">© 2026 S.L.I.C.E. Systems Inc.</div>
+                    <button class="btn-close-about" @onclick="Cancel">Close</button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+}
+
+<style>
+    .modal-overlay {
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0, 0, 0, 0.4); z-index: 10000;
+        display: flex; justify-content: center; align-items: center;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    /* Increased width from 600px to 680px to accommodate the long institution name */
+    .about-window {
+        width: 680px; min-height: 380px;
+        background: white; border-radius: 16px;
+        display: flex; overflow: hidden;
+        /* DropShadowEffect BlurRadius="25" ShadowDepth="6" Opacity="0.25" Color="#2C3E50" */
+        box-shadow: 0 6px 25px rgba(44, 62, 80, 0.25);
+    }
+
+    /* Column 0: Width="220" */
+    .about-left {
+        width: 220px; background: #2C3E50;
+        display: flex; flex-direction: column; justify-content: center; align-items: center;
+        padding: 20px; flex-shrink: 0;
+    }
+    
+    .brand-title { color: white; font-size: 36px; font-weight: 900; line-height: 1; } /* FontWeight="Black" */
+    .brand-sub { color: #95A5A6; font-size: 12px; font-weight: bold; margin-top: 5px; }
+    .brand-separator { background: #E67E22; width: 40px; height: 3px; margin-top: 30px; }
+
+    /* Column 1: Margin="30" */
+    .about-right {
+        padding: 30px; display: flex; flex-direction: column; flex-grow: 1;
+        justify-content: space-between;
+    }
+
+    .info-lbl { color: #7F8C8D; font-size: 12px; font-weight: bold; }
+    .version-txt { color: #2D3436; font-size: 26px; font-weight: 300; margin-top: 5px; margin-bottom: 25px; } /* FontWeight="Light" */
+
+    .about-body { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; }
+    
+    .info-row { display: grid; grid-template-columns: 35px 1fr; margin-bottom: 20px; align-items: flex-start; }
+    .icon-col i { color: #E67E22; font-size: 18px; margin-top: 2px; }
+    
+    .info-title { color: #95A5A6; font-size: 11px; font-weight: bold; }
+    .info-val-bold { color: #2C3E50; font-size: 16px; font-weight: bold; margin-top: 2px; }
+    .info-val-semi { color: #2C3E50; font-size: 15px; font-weight: 600; margin-top: 2px; white-space: nowrap; } /* Removed truncation */
+    
+    .viewbox-container { min-width: 0; overflow: visible; }
+
+    .about-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 25px; }
+    .copyright { color: #BDC3C7; font-size: 11px; }
+    
+    .btn-close-about {
+        width: 100px; height: 38px; background: #E67E22; color: white;
+        border: none; border-radius: 6px; font-weight: bold; cursor: pointer;
+        transition: 0.2s; outline: none;
+    }
+    .btn-close-about:hover { background: #D35400; }
+</style>
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public EventCallback<bool> IsVisibleChanged { get; set; }
+
+    private async Task Cancel()
+    {
+        IsVisible = false;
+        await IsVisibleChanged.InvokeAsync(IsVisible);
+    }
+}

@@ -1,0 +1,503 @@
+﻿@page "/request-stock"
+@using Microsoft.AspNetCore.Components.Authorization
+@inject HttpClient Http
+@inject IJSRuntime JS
+
+<PageTitle>Request Stock | S.L.I.C.E.</PageTitle>
+
+<div class="system-background">
+
+    @* BACKGROUND ANIMATION *@
+    <div class="anim-canvas">
+        <i class="fa fa-pie-chart float-icon" style="left: 10%; animation-duration: 18s; font-size: 35px; animation-delay: 0s;"></i>
+        <i class="fa fa-pie-chart float-icon" style="left: 30%; animation-duration: 12s; font-size: 25px; animation-delay: 5s;"></i>
+        <i class="fa fa-pie-chart float-icon" style="left: 50%; animation-duration: 15s; font-size: 45px; animation-delay: 2s;"></i>
+        <i class="fa fa-pie-chart float-icon" style="left: 70%; animation-duration: 20s; font-size: 20px; animation-delay: 8s;"></i>
+        <i class="fa fa-pie-chart float-icon" style="left: 90%; animation-duration: 14s; font-size: 40px; animation-delay: 1s;"></i>
+    </div>
+
+    @* MAIN GRID *@
+    <div class="main-layout">
+        
+        @* LEFT COLUMN *@
+        <div class="catalog-col">
+            
+            <div class="header-stack">
+                <div class="main-title">Request Stock</div>
+                <div class="sub-title">Request stock replenishments from Headquarters.</div>
+            </div>
+
+            <div class="filter-grid">
+                <div class="radio-wrap">
+                    @foreach (var cat in Categories)
+                    {
+                        <label class="radio-btn @(currentCategory == cat ? "radio-checked" : "")">
+                            <input type="radio" name="category" value="@cat" checked="@(currentCategory == cat)" @onchange="() => SetCategory(cat)" style="display:none;" />
+                            @cat
+                        </label>
+                    }
+                </div>
+
+                <div class="search-cell">
+                    <div class="search-border">
+                        <i class="fa fa-search search-icon"></i>
+                        <input type="text" class="search-input" placeholder="Search items..." @bind="SearchText" @bind:event="oninput" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="scroll-viewer">
+                
+                @if (UrgentItems.Any())
+                {
+                    <div class="urgent-header-stack">
+                        <i class="fa fa-warning urgent-icon"></i>
+                        <div class="urgent-text">URGENT: REQUIRES REPLENISHMENT</div>
+                    </div>
+                    
+                    <div class="wrap-panel">
+                        @foreach (var item in UrgentItems)
+                        {
+                            <button class="ingredient-card" @onclick="() => AddToCart(item)">
+                                <div class="card-grid">
+                                    <div class="card-row-0">
+                                        @if(item.HasImage) { <img src="Images/Ingredients/@item.ImagePath" class="card-img" onerror="this.style.display='none'" /> }
+                                        else { <i class="fa fa-leaf card-fallback-icon"></i> }
+                                    </div>
+                                    <div class="card-badges">
+                                        <div class="badge-hq">HQ: @item.CurrentStock.ToString("N0")</div>
+                                        <div class="badge-urgent">You: @item.MyBranchStock.ToString("N0")</div>
+                                    </div>
+                                    <div class="card-row-1">@item.Name</div>
+                                    <div class="card-row-2">+ ADD TO TICKET</div>
+                                </div>
+                            </button>
+                        }
+                    </div>
+                    <div class="separator-line"></div>
+                }
+
+                <div class="catalog-header">HQ Catalog</div>
+                
+                <div class="wrap-panel">
+                    @if (isLoading)
+                    {
+                        <div class="loading-state"><i class="fa fa-spinner fa-spin"></i></div>
+                    }
+                    else
+                    {
+                        @foreach (var item in FilteredItems)
+                        {
+                            <button class="ingredient-card" @onclick="() => AddToCart(item)">
+                                <div class="card-grid">
+                                    <div class="card-row-0">
+                                        @if(item.HasImage) { <img src="Images/Ingredients/@item.ImagePath" class="card-img" onerror="this.style.display='none'" /> }
+                                        else { <i class="fa fa-leaf card-fallback-icon"></i> }
+                                    </div>
+                                    <div class="card-badges">
+                                        <div class="badge-hq">HQ: @item.CurrentStock.ToString("N0")</div>
+                                        @if(item.IsUrgent) { <div class="badge-urgent">You: @item.MyBranchStock.ToString("N0")</div> }
+                                    </div>
+                                    <div class="card-row-1">@item.Name</div>
+                                    <div class="card-row-2">+ ADD TO TICKET</div>
+                                </div>
+                            </button>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+
+        @* RIGHT COLUMN: TICKET *@
+        <div class="ticket-col">
+            <div class="ticket-hook"></div>
+
+            <div class="ticket-panel @animationClass">
+                <svg width="100%" height="5" preserveAspectRatio="none" viewBox="0 0 360 5" class="serrated-edge">
+                    <path d="M0,0 L10,5 L20,0 L30,5 L40,0 L50,5 L60,0 L70,5 L80,0 L90,5 L100,0 L110,5 L120,0 L130,5 L140,0 L150,5 L160,0 L170,5 L180,0 L190,5 L200,0 L210,5 L220,0 L230,5 L240,0 L250,5 L260,0 L270,5 L280,0 L290,5 L300,0 L310,5 L320,0 L330,5 L340,0 L350,5 L360,0" fill="#BDC3C7"/>
+                </svg>
+
+                <div class="ticket-grid">
+                    <div class="ticket-title-row">
+                        <div class="ticket-title">TRANSFER TICKET</div>
+                    </div>
+
+                    <div class="routing-stack">
+                        <div class="routing-lbl">DESTINATION ROUTING</div>
+                        <div class="routing-box">
+                            <i class="fa fa-building routing-icon"></i>
+                            <div class="routing-val">MAIN HEADQUARTERS</div>
+                        </div>
+                    </div>
+
+                    <div class="cart-scroll">
+                        @foreach (var cartItem in CartItems)
+                        {
+                            <div class="cart-row">
+                                <div class="cart-name">@cartItem.Name</div>
+                                <div class="cart-qty-stack">
+                                    <div class="cart-x">x</div>
+                                    <input type="number" step="any" class="cart-input" @bind="cartItem.RequestQty" @bind:event="oninput" />
+                                </div>
+                                <button class="btn-remove" @onclick="() => RemoveFromCart(cartItem)">
+                                    <i class="fa fa-times"></i>
+                                </button>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="totals-stack">
+                        <div class="totals-separator"></div>
+                        <div class="totals-row">
+                            <div class="totals-lbl">TOTAL QTY</div>
+                            <div class="totals-val">@TotalQty.ToString("N0")</div>
+                        </div>
+                    </div>
+
+                    <button class="btn-submit" @onclick="SubmitRequest" disabled="@(CartItems.Count == 0 || isSubmitting)">
+                        SUBMIT REQUEST TO HQ
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* BASE SETTINGS */
+    .system-background { background-color: #FDFBF7; font-family: 'Segoe UI', sans-serif; height: calc(100vh - 60px); position: relative; overflow: hidden; }
+
+    /* BACKGROUND ANIMATION */
+    .anim-canvas { position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; z-index: 0; }
+    .float-icon { position: absolute; bottom: -100px; color: #FAD7A0; opacity: 0.2; animation: floatUp linear infinite; }
+    @@keyframes floatUp {
+        0% { transform: translateY(0); opacity: 0.2; }
+        80% { opacity: 0.2; }
+        100% { transform: translateY(-120vh); opacity: 0; }
+    }
+
+    /* MAIN GRID */
+    .main-layout { display: grid; grid-template-columns: 1fr 350px; margin: 20px; height: calc(100% - 40px); position: relative; z-index: 1; }
+    .catalog-col { margin-right: 20px; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* HEADER & FILTERS */
+    .header-stack { margin: 10px 0 20px 10px; display: flex; flex-direction: column; }
+    .main-title { font-size: 26px; font-weight: 700; color: #2C3E50; margin: 0; }
+    .sub-title { font-size: 14px; color: #95A5A6; margin-top: 2px; }
+
+    .filter-grid { display: grid; grid-template-columns: 1fr 560px; margin: 10px 0 20px 10px; align-items: start; }
+    .radio-wrap { display: flex; flex-wrap: wrap; }
+    .radio-btn { background-color: white; border: 1px solid #EEE; padding: 8px 15px; margin: 0 10px 10px 0; border-radius: 2px; font-size: 14px; cursor: pointer; transition: 0.2s; display: inline-block; }
+    .radio-checked { background-color: #E67E22; color: white; border-color: #E67E22; }
+
+    .search-cell { display: flex; justify-content: flex-start; }
+    .search-border { background: white; border-radius: 8px; height: 40px; border: 1px solid #EAECEE; display: flex; align-items: center; width: 100%; margin-right: 90px; padding: 0 10px; box-shadow: 0 1px 8px rgba(189, 195, 199, 0.2); }
+    .search-icon { color: #95A5A6; margin-right: 10px; font-size: 13px; display: flex; justify-content: center; width: 40px; }
+    .search-input { border: none; outline: none; background: transparent; font-weight: 600; font-size: 14px; color: #2C3E50; width: 100%; }
+    .search-input::placeholder { color: #BDC3C7; font-weight: 500; }
+
+    /* CATALOG & CARDS */
+    .scroll-viewer { overflow-y: auto; flex-grow: 1; padding-bottom: 20px; }
+    .scroll-viewer::-webkit-scrollbar { display: none; }
+    .wrap-panel { display: flex; flex-wrap: wrap; }
+    
+    .urgent-header-stack { display: flex; align-items: center; margin: 0 0 10px 15px; }
+    .urgent-icon { color: #C0392B; font-size: 16px; margin-right: 8px; }
+    .urgent-text { font-weight: 900; font-size: 14px; color: #C0392B; }
+    .separator-line { height: 1px; background-color: #EAECEE; margin: 10px 15px 20px 15px; }
+    .catalog-header { font-weight: 900; font-size: 14px; color: #2C3E50; margin: 0 0 10px 15px; }
+
+    .ingredient-card { background-color: white; border-radius: 12px; margin: 8px; width: 140px; height: 165px; cursor: pointer; border: none; padding: 0; position: relative; overflow: hidden; box-shadow: 0 2px 10px rgba(221, 221, 221, 0.3); transition: transform 0.1s, box-shadow 0.1s; outline: none; }
+    .ingredient-card:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(230, 126, 34, 0.4); }
+
+    .card-grid { display: grid; grid-template-rows: 2fr 1fr auto; height: 100%; width: 100%; }
+    .card-row-0 { display: flex; justify-content: center; align-items: center; margin-top: 15px; position: relative; z-index: 1; }
+    .card-img { width: 65px; height: 65px; border-radius: 8px; border: 1px solid #EAECEE; object-fit: cover; }
+    .card-fallback-icon { font-size: 40px; color: #E67E22; }
+    
+    .card-badges { position: absolute; top: 8px; right: 8px; display: flex; flex-direction: column; align-items: flex-end; z-index: 2; pointer-events: none; }
+    .badge-hq { background-color: #F0F3F4; border-radius: 4px; padding: 2px 4px; font-size: 9px; color: #95A5A6; margin-bottom: 4px; }
+    .badge-urgent { background-color: #FDEDEC; border-radius: 4px; padding: 2px 4px; font-size: 9px; color: #C0392B; font-weight: 700; }
+
+    .card-row-1 { font-weight: 600; font-size: 13px; text-align: center; margin: 5px; color: #2C3E50; display: flex; align-items: center; justify-content: center; }
+    .card-row-2 { background-color: #FDF2E9; border-radius: 0 0 12px 12px; height: 30px; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #E67E22; }
+
+    /* TICKET COLUMN */
+    .ticket-col { display: flex; flex-direction: column; }
+    .ticket-hook { height: 10px; background-color: #BDC3C7; border-radius: 2px; margin: 20px 10px 0 10px; z-index: 0; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+    .ticket-panel { background-color: white; margin: -5px 20px 20px 20px; border-radius: 0 0 5px 5px; flex-grow: 1; display: flex; flex-direction: column; z-index: 1; position: relative; transform-origin: center top; box-shadow: 0 5px 20px rgba(189, 195, 199, 0.2); }
+    .serrated-edge { position: absolute; top: -5px; left: 0; opacity: 0.5; z-index: 2; pointer-events: none; }
+
+    .ticket-grid { margin: 20px; display: flex; flex-direction: column; height: calc(100% - 40px); }
+    .ticket-title-row { margin: 0 0 20px 0; }
+    .ticket-title { font-family: 'Consolas', monospace; font-weight: 700; font-size: 18px; color: #2C3E50; margin: 0; }
+    
+    .routing-stack { margin: 0 0 15px 0; }
+    .routing-lbl { font-size: 10px; font-weight: 700; color: #95A5A6; margin: 0 0 5px 0; }
+    .routing-box { background-color: #F4F6F6; border: 1px solid #BDC3C7; border-radius: 4px; padding: 10px; display: flex; align-items: center; justify-content: center; }
+    .routing-icon { font-size: 14px; color: #2C3E50; margin-right: 10px; }
+    .routing-val { font-weight: 700; font-size: 14px; color: #2C3E50; }
+
+    .cart-scroll { overflow-y: auto; margin: 0 -5px; padding: 0 5px; flex-grow: 1; }
+    .cart-scroll::-webkit-scrollbar { width: 4px; }
+    .cart-scroll::-webkit-scrollbar-thumb { background: #BDC3C7; border-radius: 2px; }
+    .cart-row { display: grid; grid-template-columns: 1fr auto auto; align-items: center; margin: 5px 0; }
+    .cart-name { font-family: 'Consolas', monospace; font-weight: 700; color: #2C3E50; font-size: 14px; }
+    .cart-qty-stack { display: flex; align-items: center; }
+    .cart-x { color: #95A5A6; margin-right: 5px; font-size: 14px; }
+    .cart-input { width: 30px; text-align: center; border: none; background-color: #F4F6F6; font-family: 'Consolas', monospace; outline: none; font-size: 14px; }
+    .btn-remove { background: transparent; border: none; cursor: pointer; margin-left: 10px; padding: 0; outline: none; }
+    .btn-remove i { color: #E74C3C; font-size: 10px; }
+
+    .totals-stack { margin: 15px 0; }
+    .totals-separator { background-color: black; height: 1px; margin: 0 0 10px 0; }
+    .totals-row { display: flex; justify-content: space-between; align-items: center; }
+    .totals-lbl { font-family: 'Consolas', monospace; font-weight: 700; font-size: 14px; color: black; }
+    .totals-val { font-family: 'Consolas', monospace; font-weight: 700; font-size: 14px; color: #E67E22; }
+
+    .btn-submit { background-color: #2C3E50; color: white; height: 50px; border: none; border-radius: 0; font-family: 'Consolas', monospace; font-weight: 700; font-size: 14px; cursor: pointer; transition: 0.2s; outline: none; }
+    .btn-submit:hover:not(:disabled) { filter: brightness(1.2); }
+    .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .ticket-anim-play { animation: ticketFly 1.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards; }
+    @@keyframes ticketFly {
+        0% { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+        10% { transform: translate(0, -20px) rotate(0deg); opacity: 1; } 
+        36% { transform: translate(800px, -20px) rotate(5deg); opacity: 0; } 
+        37% { transform: translate(-500px, 0) rotate(0deg); opacity: 0; } 
+        66% { transform: translate(-500px, 0) rotate(0deg); opacity: 0; } 
+        100% { transform: translate(0, 0) rotate(0deg); opacity: 1; } 
+    }
+
+    .loading-state { text-align: center; width: 100%; padding-top: 50px; color: #BDC3C7; font-size: 32px; }
+</style>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
+
+    private List<MarketItem> AllMarketItems = new();
+    private List<MarketItem> FilteredItems = new();
+    private List<MarketItem> UrgentItems = new();
+    private List<MarketItem> CartItems = new();
+
+    private decimal TotalQty => CartItems.Sum(x => x.RequestQty);
+
+    private int currentBranchId = 0;
+    private int currentUserId = 0;
+    private bool isLoading = true;
+    private bool isSubmitting = false;
+
+    private List<string> Categories = new() { "All", "Dough & Flour", "Perishables", "Packaging", "Dry Goods" };
+    private string currentCategory = "All";
+
+    // SEARCH FIX: Proper property binding to instantly trigger local filter
+    private string _searchText = "";
+    public string SearchText
+    {
+        get => _searchText;
+        set
+        {
+            _searchText = value;
+            ApplyFilters();
+        }
+    }
+
+    private string animationClass = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateTask;
+        var user = authState.User;
+
+        if (user.Identity != null && user.Identity.IsAuthenticated)
+        {
+            int.TryParse(user.FindFirst("BranchID")?.Value, out currentBranchId);
+            int.TryParse(user.FindFirst("UserID")?.Value, out currentUserId);
+        }
+
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        try
+        {
+            // API FIX: Calling the Master Catalog so ALL items show up globally, not just items HQ currently has stock of
+            var masterCatalog = await Http.GetFromJsonAsync<List<MasterIngredientDto>>("api/inventory");
+            var myStock = await Http.GetFromJsonAsync<List<StockDto>>($"api/inventory/branch/{currentBranchId}");
+
+            if (masterCatalog != null && myStock != null)
+            {
+                AllMarketItems.Clear();
+                UrgentItems.Clear();
+
+                foreach (var s in masterCatalog)
+                {
+                    var myItem = myStock.FirstOrDefault(x => x.ItemID == s.ItemID);
+                    decimal myQty = myItem != null ? myItem.CurrentQuantity : 0;
+                    decimal threshold = myItem != null ? myItem.LowStockThreshold : 10;
+
+                    var item = new MarketItem
+                    {
+                        ItemID = s.ItemID,
+                        Name = s.ItemName,
+                        Unit = s.BaseUnit,
+                        Category = string.IsNullOrWhiteSpace(s.Category) ? DetermineCategory(s.ItemName) : s.Category,
+                        CurrentStock = s.TotalStock, 
+                        MyBranchStock = myQty,
+                        IsUrgent = myQty <= threshold,
+                        ImagePath = s.ImagePath
+                    };
+
+                    AllMarketItems.Add(item);
+                    if (item.IsUrgent) UrgentItems.Add(item);
+                }
+                ApplyFilters();
+            }
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Error: {ex.Message}");
+        }
+        isLoading = false;
+        StateHasChanged();
+    }
+
+    private string DetermineCategory(string name)
+    {
+        name = name.ToLower();
+        if (name.Contains("cheese") || name.Contains("meat") || name.Contains("pepperoni") || name.Contains("bacon")) return "Perishables";
+        if (name.Contains("box") || name.Contains("packaging")) return "Packaging";
+        if (name.Contains("dough") || name.Contains("flour")) return "Dough & Flour";
+        return "Dry Goods";
+    }
+
+    private void SetCategory(string cat)
+    {
+        currentCategory = cat;
+        ApplyFilters();
+    }
+
+    private void ApplyFilters()
+    {
+        FilteredItems.Clear();
+        foreach (var item in AllMarketItems)
+        {
+            bool matchesCategory = currentCategory == "All" || item.Category == currentCategory;
+            bool matchesSearch = string.IsNullOrWhiteSpace(SearchText) || item.Name.Contains(SearchText, StringComparison.OrdinalIgnoreCase);
+
+            if (matchesCategory && matchesSearch)
+            {
+                FilteredItems.Add(item);
+            }
+        }
+    }
+
+    private void AddToCart(MarketItem item)
+    {
+        var existing = CartItems.FirstOrDefault(x => x.ItemID == item.ItemID);
+        if (existing != null) 
+        {
+            existing.RequestQty++;
+        }
+        else
+        {
+            CartItems.Add(new MarketItem { ItemID = item.ItemID, Name = item.Name, Unit = item.Unit, RequestQty = 1 });
+        }
+    }
+
+    private void RemoveFromCart(MarketItem item)
+    {
+        CartItems.Remove(item);
+    }
+
+    private async Task SubmitRequest()
+    {
+        if (CartItems.Count == 0) return;
+        isSubmitting = true;
+
+        try
+        {
+            var request = new StockRequestDto
+            {
+                ToBranchID = currentBranchId,
+                ReceiverID = currentUserId,
+                Items = CartItems.Select(x => new CartItemDto { ItemID = x.ItemID, Quantity = x.RequestQty }).ToList()
+            };
+
+            var response = await Http.PostAsJsonAsync("api/logistics/request", request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                animationClass = "ticket-anim-play";
+                StateHasChanged();
+
+                await Task.Delay(1500); 
+                
+                animationClass = ""; 
+                CartItems.Clear();
+            }
+            else
+            {
+                await JS.InvokeVoidAsync("alert", $"Failed to submit: {await response.Content.ReadAsStringAsync()}");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Network Error: {ex.Message}");
+        }
+
+        isSubmitting = false;
+        StateHasChanged();
+    }
+
+    // Models mapped from API
+    public class MasterIngredientDto
+    {
+        public int ItemID { get; set; }
+        public string ItemName { get; set; } = string.Empty;
+        public string Category { get; set; } = string.Empty;
+        public string BaseUnit { get; set; } = string.Empty;
+        public decimal TotalStock { get; set; }
+        public string ImagePath { get; set; } = string.Empty;
+    }
+
+    public class StockDto
+    {
+        public int ItemID { get; set; }
+        public string ItemName { get; set; } = string.Empty;
+        public string BaseUnit { get; set; } = string.Empty;
+        public decimal CurrentQuantity { get; set; }
+        public decimal LowStockThreshold { get; set; }
+        public string ImagePath { get; set; } = string.Empty;
+    }
+
+    public class MarketItem
+    {
+        public int ItemID { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Category { get; set; } = string.Empty;
+        public string Unit { get; set; } = string.Empty;
+        public decimal CurrentStock { get; set; }
+        public decimal MyBranchStock { get; set; }
+        public bool IsUrgent { get; set; }
+        public string ImagePath { get; set; } = string.Empty;
+        public bool HasImage => !string.IsNullOrEmpty(ImagePath);
+        public decimal RequestQty { get; set; }
+    }
+
+    public class StockRequestDto
+    {
+        public int ToBranchID { get; set; }
+        public int ReceiverID { get; set; }
+        public List<CartItemDto> Items { get; set; } = new();
+    }
+
+    public class CartItemDto
+    {
+        public int ItemID { get; set; }
+        public decimal Quantity { get; set; }
+    }
+}

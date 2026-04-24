@@ -1,0 +1,298 @@
+﻿@using Microsoft.AspNetCore.Components.Forms
+@using System.IO
+@using System.Text.Json
+@inject HttpClient Http
+@inject IJSRuntime JS
+
+@if (IsVisible)
+{
+    <div class="modal-overlay" @onclick="Cancel">
+        <div class="modal-window" @onclick:stopPropagation="true">
+            
+            @* 1. HEADER - Matches WPF Grid Row 0 *@
+            <div class="modal-header">
+                <div class="d-flex">
+                    <div class="icon-box"><i class="fa fa-leaf"></i></div>
+                    <div class="header-text">
+                        <div class="title">@(IsEditMode ? "Edit Ingredient" : "New Ingredient")</div>
+                        <div class="subtitle">Register a raw material to the Master Database.</div>
+                    </div>
+                </div>
+                <button class="btn-close" @onclick="Cancel" title="Close"><i class="fa fa-times"></i></button>
+            </div>
+
+            @* 2. BODY - Matches WPF Grid Row 1 (Scrollable) *@
+            <div class="modal-body">
+                
+                @* Image Upload Section *@
+                <div class="upload-container">
+                    <div class="img-preview">
+                        @if (!string.IsNullOrEmpty(ImagePreviewUrl))
+                        {
+                            <img src="@ImagePreviewUrl" class="preview-img" />
+                        }
+                        else
+                        {
+                            <i class="fa fa-image placeholder-icon"></i>
+                        }
+                    </div>
+                    <div class="upload-text">
+                        <div class="upload-title">INGREDIENT IMAGE</div>
+                        <div class="upload-sub">Upload a clear photo (.jpg, .png)</div>
+                    </div>
+                    <div class="upload-btn-wrapper">
+                        <InputFile OnChange="HandleImageUpload" class="file-input" accept=".jpg,.jpeg,.png,.webp" />
+                        <button class="btn-browse"><i class="fa fa-folder-open me-2"></i> BROWSE</button>
+                    </div>
+                </div>
+
+                @* Standard Inputs *@
+                <label class="input-lbl">INGREDIENT NAME</label>
+                <input type="text" class="modern-input mb-15" @bind="ItemName" placeholder="Enter name..." />
+
+                <label class="input-lbl">CATEGORY</label>
+                <select class="modern-input mb-25" @bind="Category">
+                    <option value="Dough & Flour">Dough & Flour</option>
+                    <option value="Cheese & Dairy">Cheese & Dairy</option>
+                    <option value="Meat & Protein">Meat & Protein</option>
+                    <option value="Sauce & Spices">Sauce & Spices</option>
+                    <option value="Vegetables">Vegetables</option>
+                    <option value="Beverages">Beverages</option>
+                    <option value="Packaging">Packaging</option>
+                </select>
+
+                @* Measurement Section *@
+                <div class="conversion-panel">
+                    <div class="conv-header">
+                        <i class="fa fa-balance-scale me-2"></i>
+                        <span>MEASUREMENT & CONVERSION</span>
+                    </div>
+
+                    <div class="conv-grid">
+                        <div class="conv-col">
+                            <label class="input-lbl">PURCHASED AS (Bulk)</label>
+                            <input type="text" class="modern-input" placeholder="e.g., Sack" @bind="BulkUnit" />
+                        </div>
+                        <div class="conv-arrow"><i class="fa fa-arrow-right"></i></div>
+                        <div class="conv-col">
+                            <label class="input-lbl">RECIPE UNIT (Base)</label>
+                            <select class="modern-input" @bind="BaseUnit">
+                                <option value="g">g</option>
+                                <option value="ml">ml</option>
+                                <option value="pcs">pcs</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <label class="input-lbl mt-15">CONVERSION RATIO</label>
+                    <input type="number" step="any" class="modern-input ratio-input" @bind="ConversionRatio" />
+                    <div class="ratio-hint">Example: 1 Sack = 25,000 g (Enter 25000)</div>
+                </div>
+            </div>
+
+            @* 3. FOOTER - Matches WPF Grid Row 2 *@
+            <div class="modal-footer">
+                <button class="btn-cancel" @onclick="Cancel">CANCEL</button>
+                <button class="btn-save" @onclick="Save" disabled="@isProcessing">
+                    @if (isProcessing) { <i class="fa fa-spinner fa-spin"></i> } 
+                    else { <span><i class="fa fa-check me-2"></i> SAVE ITEM</span> }
+                </button>
+            </div>
+
+        </div>
+    </div>
+}
+
+<style>
+    /* Prevent layout squashing */
+    .modal-window *, .modal-window { box-sizing: border-box; }
+
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.5); z-index: 9999; display: flex; justify-content: center; align-items: center; font-family: 'Segoe UI', sans-serif; }
+    
+    /* Exact WPF Width 520px */
+    .modal-window { width: 520px; background: white; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); display: flex; flex-direction: column; max-height: 90vh; }
+
+    .modal-header { display: flex; justify-content: space-between; padding: 25px; }
+    .icon-box { background: #E8F8F5; width: 46px; height: 46px; border-radius: 10px; display: flex; justify-content: center; align-items: center; color: #27AE60; font-size: 20px; margin-right: 15px; }
+    .title { font-size: 22px; font-weight: 900; color: #2C3E50; }
+    .subtitle { font-size: 12px; color: #95A5A6; }
+    .btn-close { background: transparent; border: none; color: #BDC3C7; cursor: pointer; outline: none; }
+
+    .modal-body { padding: 0 25px; overflow-y: auto; }
+    
+    /* Image Upload UI */
+    .upload-container { background: #FAFCFC; border: 1px solid #EAECEE; border-radius: 8px; padding: 15px; display: flex; align-items: center; margin-bottom: 20px; }
+    .img-preview { width: 60px; height: 60px; background: white; border: 1px solid #EAECEE; border-radius: 8px; display: flex; justify-content: center; align-items: center; margin-right: 15px; overflow: hidden; }
+    .preview-img { width: 100%; height: 100%; object-fit: cover; }
+    .placeholder-icon { color: #D0D3D4; font-size: 20px; }
+    .upload-text { flex-grow: 1; }
+    .upload-title { font-size: 11px; font-weight: 700; color: #7F8C8D; }
+    .upload-sub { font-size: 12px; font-weight: 600; color: #BDC3C7; }
+    .upload-btn-wrapper { position: relative; overflow: hidden; }
+    .file-input { position: absolute; left: 0; top: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+    .btn-browse { background: #F0F3F4; border: none; padding: 8px 15px; border-radius: 6px; font-weight: 700; font-size: 12px; color: #2C3E50; pointer-events: none; }
+
+    /* Forms */
+    .input-lbl { font-size: 11px; font-weight: 700; color: #95A5A6; margin-bottom: 6px; display: block; margin-left: 4px; }
+    .modern-input { background: #FAFCFC; border: 1px solid #EAECEE; border-radius: 6px; height: 42px; width: 100%; padding: 0 12px; font-size: 14px; font-weight: 600; outline: none; transition: 0.2s; }
+    .modern-input:focus { border-color: #E67E22; background: white; }
+    .mb-15 { margin-bottom: 15px; } .mb-25 { margin-bottom: 25px; } .mt-15 { margin-top: 15px; }
+
+    .conversion-panel { background: #FAFCFC; border: 1px solid #EAECEE; border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+    .conv-header { color: #2980B9; font-size: 11px; font-weight: 900; margin-bottom: 15px; }
+    .conv-grid { display: grid; grid-template-columns: 1fr 30px 1fr; align-items: end; }
+    .conv-arrow { text-align: center; color: #BDC3C7; padding-bottom: 12px; }
+    .ratio-input { color: #E67E22; font-weight: 900; }
+    .ratio-hint { font-size: 11px; font-weight: 600; color: #95A5A6; margin-top: 6px; }
+
+    .modal-footer { padding: 20px 25px 25px 25px; display: flex; justify-content: flex-end; }
+    .btn-cancel { background: transparent; border: none; color: #95A5A6; font-weight: 700; cursor: pointer; margin-right: 15px; }
+    .btn-save { background: #27AE60; color: white; border: none; padding: 10px 25px; border-radius: 6px; font-weight: 700; cursor: pointer; transition: 0.2s; }
+    .btn-save:hover:not(:disabled) { opacity: 0.9; }
+    .btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public EventCallback<bool> IsVisibleChanged { get; set; }
+    [Parameter] public object? ExistingItem { get; set; } 
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    private bool IsEditMode => ExistingItem != null;
+    private bool isProcessing = false;
+
+    // FORM FIELDS
+    private int ItemID = 0;
+    private string ItemName = "";
+    private string Category = "Dough & Flour";
+    private string BulkUnit = "";
+    private string BaseUnit = "g";
+    private decimal ConversionRatio = 1000;
+    
+    // IMAGE STATE
+    private string ImagePreviewUrl = "";
+    private string ImageBase64 = "";
+    private string ImageExtension = "";
+
+    protected override void OnParametersSet()
+    {
+        if (IsVisible)
+        {
+            if (ExistingItem != null)
+            {
+                // Sync existing data into local fields
+                var json = JsonSerializer.Serialize(ExistingItem);
+                var item = JsonSerializer.Deserialize<IngredientModel>(json);
+                if (item != null)
+                {
+                    ItemID = item.ItemID;
+                    ItemName = item.ItemName;
+                    Category = item.Category;
+                    BulkUnit = item.BulkUnit;
+                    BaseUnit = item.BaseUnit;
+                    ConversionRatio = item.ConversionRatio;
+                    ImagePreviewUrl = string.IsNullOrEmpty(item.ImagePath) ? "" : $"Images/Ingredients/{item.ImagePath}";
+                    ImageBase64 = ""; // Only upload if changed
+                }
+            }
+            else if (ItemID != 0 || string.IsNullOrEmpty(ItemName))
+            {
+                ResetForm();
+            }
+        }
+    }
+
+    private void ResetForm()
+    {
+        ItemID = 0; ItemName = ""; Category = "Dough & Flour"; BulkUnit = ""; 
+        BaseUnit = "g"; ConversionRatio = 1000; ImagePreviewUrl = ""; 
+        ImageBase64 = ""; ImageExtension = "";
+    }
+
+    private async Task HandleImageUpload(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        if (file != null)
+        {
+            // Resize and read into Base64
+            var resizedFile = await file.RequestImageFileAsync(file.ContentType, 600, 600);
+            using var ms = new MemoryStream();
+            await resizedFile.OpenReadStream(1024 * 1024 * 5).CopyToAsync(ms);
+            
+            ImageBase64 = Convert.ToBase64String(ms.ToArray());
+            ImageExtension = Path.GetExtension(file.Name);
+            ImagePreviewUrl = $"data:{file.ContentType};base64,{ImageBase64}";
+            StateHasChanged();
+        }
+    }
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(ItemName))
+        {
+            await JS.InvokeVoidAsync("alert", "Ingredient name is required.");
+            return;
+        }
+
+        isProcessing = true;
+
+        var payload = new 
+        {
+            ItemID = ItemID,
+            ItemName = ItemName,
+            Category = Category,
+            BulkUnit = BulkUnit,
+            BaseUnit = BaseUnit,
+            ConversionRatio = ConversionRatio,
+            ImageBase64 = ImageBase64,
+            ImageExtension = ImageExtension
+        };
+
+        try
+        {
+            // The JSON Hammer: Manual StringContent forces the Content-Type header
+            var json = JsonSerializer.Serialize(payload);
+            var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+            
+            var response = await Http.PostAsync("api/inventory/ingredient", content);
+
+            if (response.IsSuccessStatusCode)
+            {
+                await JS.InvokeVoidAsync("alert", "Ingredient saved successfully!");
+                await OnSaved.InvokeAsync();
+                await CloseModal();
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                await JS.InvokeVoidAsync("alert", $"Save failed: {error}");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", "Connection Error: Backend is unreachable.");
+        }
+
+        isProcessing = false;
+    }
+
+    private async Task Cancel() => await CloseModal();
+
+    private async Task CloseModal()
+    {
+        IsVisible = false;
+        ResetForm();
+        await IsVisibleChanged.InvokeAsync(IsVisible);
+    }
+
+    public class IngredientModel
+    {
+        public int ItemID { get; set; }
+        public string ItemName { get; set; } = "";
+        public string Category { get; set; } = "";
+        public string BulkUnit { get; set; } = "";
+        public string BaseUnit { get; set; } = "";
+        public decimal ConversionRatio { get; set; }
+        public string? ImagePath { get; set; }
+    }
+}

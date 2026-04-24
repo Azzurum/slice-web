@@ -1,0 +1,406 @@
+﻿@page "/incoming"
+@using Microsoft.AspNetCore.Components.Authorization
+@inject HttpClient Http
+@inject IJSRuntime JS
+
+<PageTitle>Incoming Deliveries | S.L.I.C.E.</PageTitle>
+
+<div class="warehouse-bay">
+
+    @* BACKGROUND CANVAS LINES (Opacity="0.05") *@
+    <div class="bay-grid-lines"></div>
+
+    <div class="bay-content">
+        
+        @* ROW 0: HEADER (Margin="0,0,0,30") *@
+        <div class="header-stack">
+            <h2 class="main-title">INCOMING DELIVERIES</h2>
+            <p class="sub-title">Manage incoming stock transfers to this branch.</p>
+            <div class="header-divider"></div>
+        </div>
+
+        @* ROW 1: MAIN AREA *@
+        <div class="main-area">
+            
+            @* DYNAMIC PIZZA STACK (Right Side) *@
+            <div class="pizza-stack-container">
+                <div class="vol-est-lbl">VOLUME ESTIMATE</div>
+                <div class="pizza-stack">
+                    @foreach(var box in pizzaBoxes)
+                    {
+                        <div class="pizza-box shadow-soft" 
+                             style="transform: rotate(@(box.RotationAngle)deg); margin: @(box.MarginOffset);">
+                            <div class="box-red"></div>
+                            <div class="box-yellow"></div>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            @* SCROLLING SHIPMENT LIST (Left Side, Margin="0,0,180,0") *@
+            <div class="shipment-scroll-area">
+                
+                @if (isLoading)
+                {
+                    <div class="text-center pt-5">
+                        <i class="fa fa-spinner fa-spin" style="font-size: 40px; color: #BDC3C7;"></i>
+                    </div>
+                }
+                else if (shipmentList == null || !shipmentList.Any())
+                {
+                    <div class="empty-state">
+                        <i class="fa fa-check-circle empty-icon"></i>
+                        <div class="empty-title">ALL CLEAR</div>
+                        <div class="empty-sub">No shipments currently in-transit.</div>
+                    </div>
+                }
+                else
+                {
+                    @foreach (var shipment in shipmentList)
+                    {
+                        <div class="shipment-card shadow-soft">
+                            <div class="truck-box">
+                                <i class="fa fa-truck text-pizza-red" style="font-size: 20px;"></i>
+                            </div>
+
+                            <div class="shipment-info">
+                                <div class="id-row">
+                                    <span class="id-lbl">SHIPMENT #</span>
+                                    <span class="id-val">@shipment.TransferID</span>
+                                </div>
+                                <div class="branch-val">@(shipment.FromBranchName ?? "Main Warehouse")</div>
+                                <div class="date-val">Dispatched on @shipment.SentDate.ToString("MMM dd, yyyy")</div>
+                            </div>
+
+                            <button class="btn-receive" @onclick="() => ReceiveStock(shipment)">
+                                <i class="fa fa-download me-2"></i>
+                                CONFIRM RECEIPT
+                            </button>
+                        </div>
+                    }
+                }
+            </div>
+
+        </div>
+    </div>
+
+    @* ========================================== *@
+    @* ANIMATION OVERLAYS                         *@
+    @* ========================================== *@
+    
+    @* SHUTTER ANIMATION (Entrance) *@
+    <div class="shutter shutter-top @(playEntrance ? "shutter-open-top" : "")">
+        <i class="fa fa-arrow-down shutter-icon"></i>
+    </div>
+    <div class="shutter shutter-bottom @(playEntrance ? "shutter-open-bottom" : "")">
+        <i class="fa fa-arrow-up shutter-icon"></i>
+    </div>
+
+    @* RECEIVED STAMP ANIMATION (On Click) *@
+    <div class="stamp-overlay @(showStamp ? "stamp-visible" : "")">
+        <div class="stamp-border @(showStamp ? "stamp-animate" : "")">
+            RECEIVED
+        </div>
+    </div>
+
+</div>
+
+<style>
+    /* BASE SETTINGS */
+    :root {
+        --bay-steel: #34495E;
+        --pizza-red: #E74C3C;
+        --success-green: #27AE60;
+    }
+    
+    .text-pizza-red { color: var(--pizza-red); }
+
+    /* LinearGradientBrush StartPoint="0,0" EndPoint="1,1" Color="#FDFBF7" Offset="0" Color="#F5EBDC" Offset="1" */
+    .warehouse-bay {
+        background: linear-gradient(135deg, #FDFBF7 0%, #F5EBDC 100%);
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        height: calc(100vh - 60px);
+        position: relative;
+        overflow: hidden; /* ClipToBounds="True" */
+    }
+
+    /* GRID LINES (Canvas Opacity="0.05") */
+    .bay-grid-lines {
+        position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+        background-image: 
+            linear-gradient(to right, black 1px, transparent 1px),
+            linear-gradient(to bottom, black 1px, transparent 1px);
+        background-size: 50px 50px;
+        opacity: 0.05; z-index: 0;
+    }
+
+    /* MAIN CONTENT (Margin="40") */
+    .bay-content { position: relative; z-index: 1; padding: 40px; display: flex; flex-direction: column; height: 100%; }
+
+    /* HEADER */
+    .header-stack { display: flex; flex-direction: column; margin-bottom: 30px; }
+    .main-title { font-size: 28px; font-weight: 900; color: var(--bay-steel); margin: 0; letter-spacing: 1px; } /* FontWeight="Black" */
+    .sub-title { font-size: 14px; font-weight: 400; color: #95A5A6; margin: 5px 0 0 2px; }
+    .header-divider { background-color: #D5DBDB; height: 1px; width: 100%; margin-top: 20px; }
+
+    /* ROW 1: MAIN AREA */
+    .main-area { flex-grow: 1; position: relative; display: flex; }
+
+    /* DYNAMIC PIZZA STACK (HorizontalAlignment="Right", VerticalAlignment="Bottom", Margin="0,0,20,20") */
+    .pizza-stack-container {
+        position: absolute; right: 20px; bottom: 20px;
+        display: flex; flex-direction: column; align-items: center; z-index: 0;
+    }
+    .vol-est-lbl { font-size: 10px; font-weight: 700; color: #BDC3C7; margin-bottom: 5px; } /* FontWeight="Bold" */
+    
+    .pizza-stack { display: flex; flex-direction: column-reverse; /* Replicates StackPanel VerticalAlignment="Bottom" */ }
+    
+    .pizza-box {
+        width: 140px; height: 16px; background-color: #FDFEFE;
+        border: 1px solid #D0D3D4; border-radius: 2px;
+        display: flex; position: relative;
+    }
+    .shadow-soft { box-shadow: 0 2px 4px rgba(127, 140, 141, 0.3); } /* BlurRadius="4" ShadowDepth="2" Opacity="0.3" Color="#7F8C8D" */
+    
+    .box-red { background-color: var(--pizza-red); width: 40px; height: 100%; margin-left: 10px; }
+    .box-yellow { background-color: #F1C40F; width: 5px; height: 100%; margin-left: 5px; }
+
+    /* SHIPMENT LIST (Margin="0,0,180,0" to avoid the pizza stack) */
+    .shipment-scroll-area { flex-grow: 1; margin-right: 180px; overflow-y: auto; z-index: 1; padding-right: 10px; }
+    .shipment-scroll-area::-webkit-scrollbar { display: none; } /* VerticalScrollBarVisibility="Hidden" */
+
+    /* EMPTY STATE */
+    .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
+    .empty-icon { font-size: 80px; color: #D5DBDB; margin-bottom: 15px; }
+    .empty-title { font-size: 20px; font-weight: 700; color: #BDC3C7; } /* FontWeight="Bold" */
+    .empty-sub { font-size: 14px; font-weight: 400; color: #D5DBDB; }
+
+    /* SHIPMENT CARD */
+    /* BorderBrush="#EBEDEF" BorderThickness="1" */
+    .shipment-card {
+        background-color: white; border-radius: 12px; border: 1px solid #EBEDEF;
+        margin-bottom: 15px; height: 90px; padding: 0 20px;
+        display: grid; grid-template-columns: auto 1fr auto; align-items: center;
+        /* DropShadowEffect BlurRadius="15" Color="#CCD1D1" ShadowDepth="5" Opacity="0.2" */
+        box-shadow: 0 5px 15px rgba(204, 209, 209, 0.2);
+    }
+
+    .truck-box { width: 50px; height: 50px; background-color: #FDF2E9; border-radius: 25px; display: flex; align-items: center; justify-content: center; }
+
+    .shipment-info { margin: 0 25px; display: flex; flex-direction: column; justify-content: center; }
+    .id-row { display: flex; align-items: baseline; }
+    .id-lbl { font-size: 10px; font-weight: 700; color: #95A5A6; }
+    .id-val { font-size: 12px; font-weight: 700; color: var(--bay-steel); margin-left: 5px; }
+    .branch-val { font-size: 18px; font-weight: 700; color: var(--bay-steel); }
+    .date-val { font-size: 12px; font-weight: 400; color: #95A5A6; }
+
+    /* RECEIVE BUTTON (Style="{StaticResource ReceiveButtonStyle}") */
+    .btn-receive {
+        background-color: var(--bay-steel); color: white;
+        height: 45px; padding: 0 20px; border-radius: 22px; border: none;
+        font-weight: 700; font-size: 12px; cursor: pointer; transition: 0.2s;
+        display: flex; align-items: center;
+    }
+    .btn-receive:hover { background-color: var(--success-green); }
+
+    /* ========================================== */
+    /* SHUTTER ANIMATION                          */
+    /* ========================================== */
+    .shutter {
+        position: absolute; left: 0; right: 0; height: 50%;
+        background-color: #E5E7E9; border-color: #BDC3C7; border-style: solid;
+        z-index: 200; display: flex; align-items: center; justify-content: center;
+        transition: transform 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94); /* WPF CubicEase mapping */
+    }
+    .shutter-top { top: 0; border-width: 0 0 4px 0; align-items: flex-end; padding-bottom: 20px; }
+    .shutter-bottom { bottom: 0; border-width: 4px 0 0 0; align-items: flex-start; padding-top: 20px; }
+    
+    .shutter-icon { font-size: 30px; color: #BDC3C7; }
+
+    .shutter-open-top { transform: translateY(-100%); }
+    .shutter-open-bottom { transform: translateY(100%); }
+
+    /* ========================================== */
+    /* STAMP ANIMATION                            */
+    /* ========================================== */
+    /* Grid Background="#20000000" */
+    .stamp-overlay {
+        position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+        background-color: rgba(0, 0, 0, 0.125); z-index: 100;
+        display: flex; align-items: center; justify-content: center;
+        opacity: 0; visibility: hidden; transition: 0.1s;
+    }
+    .stamp-visible { opacity: 1; visibility: visible; }
+
+    /* Width="300" Height="150" BorderThickness="8" CornerRadius="10" RotateTransform Angle="-15" */
+    .stamp-border {
+        width: 300px; height: 150px; border: 8px solid var(--pizza-red); border-radius: 10px;
+        color: var(--pizza-red); font-size: 42px; font-weight: 900; /* FontWeight="Black" */
+        display: flex; align-items: center; justify-content: center;
+        transform: scale(3) rotate(-15deg); opacity: 0;
+    }
+    
+    /* DoubleAnimation 3.0 to 1.0 BounceEase */
+    .stamp-animate { animation: stampDrop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+    
+    @@keyframes stampDrop {
+        0% { transform: scale(3) rotate(-15deg); opacity: 0; }
+        100% { transform: scale(1) rotate(-15deg); opacity: 1; }
+    }
+</style>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
+
+    private List<MeshLogistics> shipmentList = new();
+    private List<PizzaBoxVM> pizzaBoxes = new();
+    
+    private int currentBranchId = 0;
+    private bool isLoading = true;
+
+    // Animation States
+    private bool playEntrance = false;
+    private bool showStamp = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateTask;
+        var user = authState.User;
+
+        if (user.Identity != null && user.Identity.IsAuthenticated)
+        {
+            int.TryParse(user.FindFirst("BranchID")?.Value, out currentBranchId);
+        }
+
+        await LoadShipments();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Delay slightly to ensure UI is drawn, then trigger CSS Entrance Animation
+            await Task.Delay(100);
+            playEntrance = true;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadShipments()
+    {
+        isLoading = true;
+        try
+        {
+            var list = await Http.GetFromJsonAsync<List<MeshLogistics>>($"api/logistics/incoming/{currentBranchId}");
+            if (list != null)
+            {
+                shipmentList = list;
+
+                // Execute exact WPF volume calculation logic
+                double totalVolume = 0;
+                foreach (var item in shipmentList)
+                {
+                    totalVolume += (double)item.TotalQuantity;
+                }
+                GeneratePizzaStack(totalVolume);
+            }
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Error loading shipments: {ex.Message}");
+        }
+        isLoading = false;
+        StateHasChanged();
+    }
+
+    // Exact reproduction of your C# Stack Generator
+    private void GeneratePizzaStack(double totalUnits)
+    {
+        pizzaBoxes.Clear();
+        int boxCount = 0;
+
+        if (totalUnits > 0 && totalUnits < 1000)
+        {
+            boxCount = 2; 
+        }
+        else
+        {
+            boxCount = (int)(totalUnits / 1250);
+            if (boxCount < 3 && totalUnits > 0) boxCount = 3;
+        }
+
+        if (boxCount > 45) boxCount = 45;
+
+        Random rnd = new Random();
+        for (int i = 0; i < boxCount; i++)
+        {
+            pizzaBoxes.Add(new PizzaBoxVM
+            {
+                RotationAngle = rnd.Next(-2, 3),
+                // CSS Margin string: "top right bottom left" => "rnd px 0 -10px 0"
+                MarginOffset = $"{rnd.Next(-5, 5)}px 0 -10px 0"
+            });
+        }
+    }
+
+    private async Task ReceiveStock(MeshLogistics shipment)
+    {
+        bool confirm = await JS.InvokeAsync<bool>("confirm", $"Confirm receipt of Transfer #{shipment.TransferID}?");
+        if (!confirm) return;
+
+        try
+        {
+            var response = await Http.PutAsync($"api/logistics/receive/{shipment.TransferID}", null);
+
+            if (response.IsSuccessStatusCode)
+            {
+                // Trigger Stamp Animation
+                showStamp = true;
+                StateHasChanged();
+
+                await Task.Delay(1500); // Wait 1.5 seconds so user can see the stamp
+
+                showStamp = false;
+                
+                // Refresh the data list
+                await LoadShipments();
+            }
+            else
+            {
+                await JS.InvokeVoidAsync("alert", $"Failed to receive: {await response.Content.ReadAsStringAsync()}");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Network Error: {ex.Message}");
+        }
+    }
+
+    // Mapped Models
+    public class PizzaBoxVM
+    {
+        public double RotationAngle { get; set; }
+        public string MarginOffset { get; set; } = string.Empty;
+    }
+
+    public class MeshLogistics
+    {
+        public int TransferID { get; set; }
+        
+        // Added '?' to make these nullable!
+        public int? FromBranchID { get; set; } 
+        public int? ToBranchID { get; set; }
+        
+        public string Status { get; set; } = string.Empty;
+        
+        // Added '?' because these are NULL in the database before the transaction is completed
+        public int? SenderID { get; set; }
+        public int? ReceiverID { get; set; }
+        
+        public DateTime SentDate { get; set; }
+        
+        public string FromBranchName { get; set; } = string.Empty;
+        public decimal TotalQuantity { get; set; }
+    }
+}

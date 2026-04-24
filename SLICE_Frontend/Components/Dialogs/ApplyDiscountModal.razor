@@ -1,0 +1,178 @@
+﻿@inject IJSRuntime JS
+@using SLICE_Frontend.Components.Pages
+
+@if (IsVisible)
+{
+    <div class="modal-overlay" @onclick="Cancel">
+        <div class="modal-window" @onclick:stopPropagation="true">
+            
+            <div class="modal-padding">
+                
+                @* HEADER *@
+                <div class="header-row">
+                    <div class="title">APPLY DISCOUNT</div>
+                    <button class="btn-close" @onclick="Cancel">✕</button>
+                </div>
+                <div class="subtitle">Select an applicable pricing adjustment below:</div>
+
+                @* LISTBOX *@
+                <div class="list-container">
+                    @foreach (var disc in Discounts)
+                    {
+                        <button class="discount-card @(SelectedDiscount?.DiscountID == disc.DiscountID ? "card-selected" : "")" 
+                                @onclick="() => SelectDiscount(disc)">
+                            <div class="disc-name">@disc.DiscountName</div>
+                            <div class="disc-type">@disc.DiscountType</div>
+                        </button>
+                    }
+                </div>
+
+                @* DYNAMIC INPUTS (Bottom aligned) *@
+                @if (SelectedDiscount != null)
+                {
+                    <div class="inputs-panel">
+                        <div class="separator"></div>
+
+                        @if (SelectedDiscount.DiscountType == "Government")
+                        {
+                            <div class="input-lbl">CUSTOMER ID NUMBER (PWD/SENIOR)</div>
+                            <input type="text" class="txt-input id-input" maxlength="25" 
+                                   @bind="GovIdInput" @bind:event="oninput" @onkeypress="HandleIdKeyPress" />
+                        }
+                        else if (SelectedDiscount.DiscountType == "Manual")
+                        {
+                            <div class="input-lbl">MANUAL AMOUNT / PERCENTAGE</div>
+                            <input type="number" step="any" class="txt-input mb-10" @bind="ManualValue" />
+
+                            <div class="input-lbl">REASON FOR OVERRIDE</div>
+                            <input type="text" class="txt-input" @bind="ManualReason" />
+                        }
+                    </div>
+                }
+
+                @* CONFIRM BUTTON *@
+                <button class="btn-confirm" @onclick="Confirm">CONFIRM DISCOUNT</button>
+
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    /* OVERLAY */
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.4); z-index: 1000; display: flex; justify-content: center; align-items: center; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    
+    /* WINDOW (Width="450", Height="500") */
+    .modal-window { width: 450px; height: 500px; background: white; border-radius: 12px; border: 1px solid #EAECEE; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2); display: flex; flex-direction: column; }
+    
+    .modal-padding { padding: 25px; display: flex; flex-direction: column; height: 100%; }
+
+    /* HEADER */
+    .header-row { display: flex; justify-content: space-between; align-items: center; }
+    .title { font-size: 18px; font-weight: 900; color: #2C3E50; } /* Black */
+    .btn-close { background: transparent; border: none; color: #95A5A6; font-size: 16px; cursor: pointer; padding: 0; outline: none; }
+    .btn-close:hover { color: #E74C3C; }
+    .subtitle { font-size: 13px; color: #7F8C8D; margin: 5px 0 20px 0; }
+
+    /* LISTBOX */
+    .list-container { overflow-y: auto; flex-grow: 1; padding-right: 5px; }
+    .list-container::-webkit-scrollbar { width: 4px; }
+    .list-container::-webkit-scrollbar-thumb { background: #EAECEE; border-radius: 2px; }
+
+    .discount-card {
+        width: 100%; background: #F8F9F9; border-radius: 6px; padding: 15px; margin-bottom: 10px;
+        border: 1px solid transparent; text-align: left; cursor: pointer; transition: 0.1s; outline: none;
+    }
+    .discount-card:hover { background: #FFF3E0; border-color: #E67E22; }
+    
+    .card-selected { background: #E67E22 !important; }
+    .card-selected .disc-name { color: white !important; }
+    .card-selected .disc-type { color: white !important; }
+
+    .disc-name { font-weight: 700; font-size: 14px; color: #2C3E50; margin-bottom: 2px; }
+    .disc-type { font-size: 11px; font-weight: 600; color: #E67E22; }
+
+    /* INPUTS PANEL */
+    .inputs-panel { background: white; margin-bottom: 15px; }
+    .separator { height: 1px; background: #EAECEE; margin-bottom: 15px; }
+    
+    .input-lbl { font-size: 11px; font-weight: 700; color: #95A5A6; margin-bottom: 6px; }
+    .txt-input {
+        width: 100%; height: 35px; font-size: 14px; padding: 0 5px; border: 1px solid #BDC3C7; border-radius: 4px;
+        font-family: 'Segoe UI'; outline: none; transition: 0.2s;
+    }
+    .txt-input:focus { border-color: #E67E22; }
+    .id-input { text-transform: uppercase; }
+    .mb-10 { margin-bottom: 10px; }
+
+    /* CONFIRM BUTTON */
+    .btn-confirm {
+        width: 100%; height: 45px; background: #27AE60; color: white; font-weight: 700; font-size: 14px;
+        border: none; border-radius: 6px; cursor: pointer; transition: 0.2s; margin-top: 5px; outline: none;
+    }
+    .btn-confirm:hover { filter: brightness(1.1); }
+</style>
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public EventCallback<bool> IsVisibleChanged { get; set; }
+    
+    // EXACT MATCH: Replaced 'AvailableDiscounts' with 'Discounts' to link to POS.razor perfectly
+    [Parameter] public List<POS.DiscountDto> Discounts { get; set; } = new();
+    
+    // EXACT MATCH: Replaced 'OnDiscountApplied' with 'OnDiscountSelected' to link to POS.razor
+    [Parameter] public EventCallback<POS.DiscountDto> OnDiscountSelected { get; set; }
+
+    private POS.DiscountDto? SelectedDiscount;
+    private string GovIdInput = "";
+    private decimal ManualValue = 0;
+    private string ManualReason = "";
+
+    private void SelectDiscount(POS.DiscountDto disc)
+    {
+        SelectedDiscount = disc;
+        GovIdInput = "";
+        ManualValue = 0;
+        ManualReason = "";
+    }
+
+    private void HandleIdKeyPress(KeyboardEventArgs e) { }
+
+    private async Task Confirm()
+    {
+        if (SelectedDiscount != null)
+        {
+            if (SelectedDiscount.DiscountType == "Government" && string.IsNullOrWhiteSpace(GovIdInput))
+            {
+                await JS.InvokeVoidAsync("alert", "A valid Government ID is required for this discount.");
+                return;
+            }
+
+            if (SelectedDiscount.DiscountType == "Manual")
+            {
+                if (string.IsNullOrWhiteSpace(ManualReason) || ManualValue <= 0)
+                {
+                    await JS.InvokeVoidAsync("alert", "Please enter a valid amount and a reason for the override.");
+                    return;
+                }
+                SelectedDiscount.DiscountValue = ManualValue;
+            }
+
+            // Assign inputted values
+            SelectedDiscount.ReferenceID = GovIdInput.Trim();
+            SelectedDiscount.Reason = ManualReason.Trim();
+
+            await OnDiscountSelected.InvokeAsync(SelectedDiscount);
+            await CloseModal();
+        }
+    }
+
+    private async Task Cancel() => await CloseModal();
+
+    private async Task CloseModal()
+    {
+        IsVisible = false;
+        SelectedDiscount = null;
+        await IsVisibleChanged.InvokeAsync(IsVisible);
+    }
+}

@@ -1,0 +1,462 @@
+﻿@page "/users"
+@using System.Text.RegularExpressions
+@inject HttpClient Http
+@inject IJSRuntime JS
+
+<PageTitle>User Administration | S.L.I.C.E.</PageTitle>
+
+<div class="system-background">
+    
+    @* ROW 0: HEADER *@
+    <div class="header-container">
+        <div class="header-titles">
+            <div class="main-title">User Administration</div>
+            <div class="sub-title">Manage system access and permissions.</div>
+        </div>
+
+        <div class="header-actions">
+            <div class="search-box shadow-sm">
+                <i class="fa fa-search search-icon"></i>
+                <input type="text" class="search-input" placeholder="Find user..." 
+                       @bind="SearchText" @bind:event="oninput" />
+            </div>
+
+            <button class="btn-action" @onclick="AddUser_Click">
+                <div class="btn-content">
+                    <i class="fa fa-plus btn-icon"></i>
+                    <span>NEW USER</span>
+                </div>
+            </button>
+        </div>
+    </div>
+
+    @* ROW 1: DATAGRID *@
+    <div class="card-style shadow-hard flex-grow-1 d-flex flex-column overflow-hidden">
+        <div class="table-scroll-viewer flex-grow-1">
+            @if (isLoading)
+            {
+                <div class="loading-state">
+                    <i class="fa fa-spinner fa-spin fs-2 text-muted mb-2"></i>
+                </div>
+            }
+            else
+            {
+                <table class="custom-datagrid">
+                    <thead>
+                        <tr>
+                            <th style="width: 80px;"></th>
+                            <th style="width: 240px;">EMPLOYEE NAME</th>
+                            <th style="width: 220px;">EMAIL ADDRESS</th>
+                            <th style="width: 140px;">ROLE</th>
+                            <th style="width: auto;">BRANCH ASSIGNMENT</th>
+                            <th style="width: 120px;">STATUS</th>
+                            <th style="width: 130px; text-align: center;">ACTIONS</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var user in userList)
+                        {
+                            <tr>
+                                <td class="text-center">
+                                    <div class="avatar-circle mx-auto" style="background-color: @user.RoleColor;">
+                                        @user.Initials
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="employee-name">@user.FullName</div>
+                                    <div class="employee-username">@("@" + user.Username)</div>
+                                </td>
+                                <td>
+                                    <div class="employee-email">@user.Email</div>
+                                </td>
+                                <td>
+                                    <div class="role-badge">
+                                        <div class="role-bg" style="background-color: @user.RoleColor;"></div>
+                                        <span class="role-text" style="color: @user.RoleColor;">@user.Role</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="branch-name">@user.BranchName</div>
+                                </td>
+                                <td>
+                                    <div class="status-container">
+                                        <div class="status-dot" style="background-color: @user.StatusColor;"></div>
+                                        <span class="status-text" style="color: @user.StatusColor;">@user.StatusText</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="action-buttons">
+                                        <button class="btn-icon" title="Edit User" @onclick="() => EditUser_Click(user)">
+                                            <i class="fa fa-pencil" style="color: #3498DB;"></i>
+                                        </button>
+
+                                        @if (user.IsActive)
+                                        {
+                                            <button class="btn-icon" title="Deactivate User" @onclick="() => DeleteUser_Click(user)">
+                                                <i class="fa fa-trash" style="color: #C0392B;"></i>
+                                            </button>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn-icon" title="Restore User" @onclick="() => RestoreUser_Click(user)">
+                                                <i class="fa fa-undo" style="color: #27AE60;"></i>
+                                            </button>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+</div>
+
+@* ========================================== *@
+@* EXACT WPF ADD/EDIT USER WINDOW (450px)     *@
+@* ========================================== *@
+@if (showModal)
+{
+    <div class="modal-overlay" @onclick="CloseModal">
+        <div class="modal-window" @onclick:stopPropagation="true">
+            
+            <div class="modal-header">
+                <div>
+                    <div class="title">@(isEditMode ? "Edit User" : "New Account")</div>
+                    <div class="subtitle">@(isEditMode ? "Modify credentials for an existing employee." : "Create credentials for a new employee.")</div>
+                </div>
+                <button class="btn-close" @onclick="CloseModal"><i class="fa fa-times"></i></button>
+            </div>
+            
+            <div class="modal-body">
+                <label class="input-lbl">FULL NAME</label>
+                <input type="text" class="modern-input mb-15" @bind="modalUser.FullName" placeholder="e.g. Juan Dela Cruz" />
+
+                <label class="input-lbl">EMAIL ADDRESS</label>
+                <input type="email" class="modern-input mb-15" @bind="modalUser.Email" placeholder="e.g. employee@slice.com" />
+
+                <label class="input-lbl">USERNAME</label>
+                <input type="text" class="modern-input mb-15" @bind="modalUser.Username" placeholder="e.g. juan.delacruz" />
+
+                <label class="input-lbl">PASSWORD @(isEditMode ? "(Leave blank to keep existing)" : "")</label>
+                <input type="password" class="modern-input mb-15" @bind="passwordInput" placeholder="*******" />
+
+                <label class="input-lbl">ROLE</label>
+                <select class="modern-input mb-15" @bind="ModalRole">
+                    <option value="Clerk">Clerk</option>
+                    <option value="Logistics Admin">Logistics Admin</option>
+                    <option value="Manager">Manager</option>
+                    <option value="Super-Admin">Super-Admin</option>
+                </select>
+
+                <label class="input-lbl">ASSIGNED BRANCH</label>
+                <select class="modern-input" @bind="modalUser.BranchID" disabled="@isBranchDisabled">
+                    @foreach (var branch in branchesList)
+                    {
+                        <option value="@branch.BranchID">@branch.BranchName</option>
+                    }
+                </select>
+                <div class="branch-hint">* Super-Admins can access all branches regardless of selection.</div>
+            </div>
+            
+            <div class="modal-footer">
+                <button class="btn-cancel" @onclick="CloseModal">Cancel</button>
+                <button class="btn-save" @onclick="SaveUser">
+                    <i class="fa fa-save me-2"></i> @(isEditMode ? "UPDATE USER" : "CREATE USER")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<style>
+    /* SYSTEM BACKGROUND & CARD */
+    .system-background { background-color: #FDFBF7; font-family: 'Segoe UI', sans-serif; padding: 30px; height: calc(100vh - 60px); display: flex; flex-direction: column; }
+    .card-style { background: white; border-radius: 12px; margin: 10px 0 0 0; }
+    .shadow-hard { box-shadow: 0 4px 20px rgba(189, 195, 199, 0.15); }
+
+    /* HEADER */
+    .header-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
+    .header-titles { display: flex; flex-direction: column; justify-content: center; }
+    .main-title { font-size: 30px; font-weight: 900; color: #2C3E50; }
+    .sub-title { font-size: 15px; font-weight: 400; color: #95A5A6; margin-top: 4px; }
+    .header-actions { display: flex; align-items: center; }
+
+    /* SEARCH BOX */
+    .search-box { background: white; border-radius: 8px; height: 44px; width: 280px; border: 1.5px solid #EAECEE; margin-right: 15px; display: flex; align-items: center; }
+    .search-icon { font-size: 16px; color: #95A5A6; margin: 0 10px 0 15px; }
+    .search-input { border: none; outline: none; background: transparent; font-weight: 600; font-size: 15px; color: #2C3E50; width: 100%; }
+
+    /* ACTION BUTTON */
+    .btn-action { background: #3498DB; color: white; border: none; border-radius: 8px; height: 44px; padding: 0 20px; font-weight: 700; font-size: 14px; cursor: pointer; transition: 0.2s; outline: none; }
+    .btn-action:hover { opacity: 0.9; }
+    .btn-content { display: flex; align-items: center; }
+    .btn-icon { font-size: 14px; color: white; margin-right: 8px; }
+
+    /* DATAGRID */
+    .table-scroll-viewer { overflow-y: auto; overflow-x: hidden; padding-right: 5px; }
+    .custom-datagrid { width: 100%; border-collapse: collapse; text-align: left; }
+    .custom-datagrid th { background-color: white; color: #95A5A6; font-size: 11px; font-weight: 700; padding: 15px 15px 10px 15px; border-bottom: 1px solid #EAECEE; position: sticky; top: 0; z-index: 1; }
+    .custom-datagrid tr { height: 65px; border-bottom: 1px solid #F4F6F6; transition: background 0.1s; }
+    .custom-datagrid td { padding: 0 10px; vertical-align: middle; }
+    .custom-datagrid tbody tr:hover { background-color: #FFFBF5; }
+
+    /* CELL STYLES */
+    .avatar-circle { width: 42px; height: 42px; border-radius: 21px; color: white; font-size: 16px; font-weight: 900; display: flex; align-items: center; justify-content: center; }
+    .employee-name { font-size: 16px; font-weight: 900; color: #2C3E50; }
+    .employee-username { font-size: 12px; font-weight: 600; color: #95A5A6; margin-top: 2px; }
+    .employee-email { font-size: 13px; font-weight: 400; color: #95A5A6; }
+    .branch-name { font-size: 14px; font-weight: 700; color: #2C3E50; }
+
+    .role-badge { position: relative; display: inline-flex; border-radius: 6px; overflow: hidden; align-items: center; justify-content: center; }
+    .role-bg { position: absolute; top: 0; left: 0; right: 0; bottom: 0; opacity: 0.15; z-index: 0; }
+    .role-text { position: relative; z-index: 1; font-weight: 900; font-size: 12px; padding: 6px 12px; margin: 0; }
+
+    .status-container { display: flex; align-items: center; }
+    .status-dot { width: 8px; height: 8px; border-radius: 4px; margin-right: 8px; }
+    .status-text { font-size: 12px; font-weight: 700; }
+
+    .action-buttons { display: flex; justify-content: center; }
+    .btn-icon { width: 34px; height: 34px; border-radius: 6px; background: transparent; border: none; cursor: pointer; transition: 0.2s; display: inline-flex; align-items: center; justify-content: center; margin: 0 2.5px; outline: none; }
+    .btn-icon:hover { background-color: #F0F3F4; }
+    .loading-state { display: flex; justify-content: center; padding-top: 50px; }
+
+    /* EXACT WPF MODAL STYLES (450px Width, Vertical Stack) */
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.4); z-index: 9999; display: flex; justify-content: center; align-items: center; font-family: 'Segoe UI', sans-serif; }
+    .modal-window { width: 450px; background: white; border-radius: 16px; box-shadow: 0 5px 20px rgba(0,0,0,0.15); display: flex; flex-direction: column; }
+    .modal-header { display: flex; justify-content: space-between; padding: 25px 25px 10px 25px; border-bottom: none; }
+    .title { font-size: 22px; font-weight: 900; color: #2C3E50; }
+    .subtitle { font-size: 12px; color: #95A5A6; margin-top: 2px; }
+    .btn-close { background: transparent; border: none; color: #95A5A6; font-size: 16px; cursor: pointer; align-self: flex-start; outline: none; transition: 0.2s; }
+    .btn-close:hover { color: #E74C3C; }
+    
+    .modal-body { padding: 10px 25px; }
+    .input-lbl { font-size: 11px; font-weight: 700; color: #95A5A6; margin-bottom: 5px; display: block; }
+    .modern-input { background: #F9F9F9; border: 1px solid #E0E0E0; border-radius: 6px; height: 40px; width: 100%; padding: 0 10px; font-size: 14px; color: #2C3E50; outline: none; transition: 0.2s; }
+    .modern-input:focus { border-color: #BDC3C7; background: white; }
+    .modern-input:disabled { opacity: 0.6; cursor: not-allowed; }
+    .mb-15 { margin-bottom: 15px; }
+    .branch-hint { font-size: 10px; color: #BDC3C7; font-style: italic; margin-top: 5px; }
+
+    .modal-footer { padding: 25px; display: flex; justify-content: flex-end; align-items: center; border-top: none; }
+    .btn-cancel { width: 100px; height: 40px; background: transparent; border: none; color: #7F8C8D; font-weight: 600; cursor: pointer; transition: 0.2s; outline: none; }
+    .btn-cancel:hover { color: #2C3E50; }
+    .btn-save { background: #3498DB; color: white; border: none; padding: 0 20px; height: 40px; border-radius: 8px; font-weight: 700; font-size: 13px; cursor: pointer; transition: 0.2s; outline: none; }
+    .btn-save:hover { opacity: 0.9; }
+</style>
+
+@code {
+    private List<AppUser> userList = new();
+    private List<BranchModel> branchesList = new();
+    private bool isLoading = true;
+
+    // Search Logic
+    private string _searchText = "";
+    private string SearchText 
+    { 
+        get => _searchText; 
+        set { _searchText = value; _ = LoadData(); } 
+    }
+
+    // Modal State
+    private bool showModal = false;
+    private bool isEditMode = false;
+    private bool isBranchDisabled = false;
+    private AppUser modalUser = new();
+    private string passwordInput = "";
+
+    // Logistics Admin Safeguard (Exact WPF Replication)
+    private string ModalRole
+    {
+        get => modalUser.Role;
+        set
+        {
+            modalUser.Role = value;
+            if (value == "Logistics Admin")
+            {
+                var hq = branchesList.FirstOrDefault(b => b.BranchName.Contains("Headquarters") || b.BranchName.Contains("HQ") || b.BranchName.Contains("Main"));
+                if (hq != null) modalUser.BranchID = hq.BranchID;
+                isBranchDisabled = true;
+            }
+            else
+            {
+                isBranchDisabled = false;
+            }
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+        await LoadBranches();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        try
+        {
+            var users = await Http.GetFromJsonAsync<List<AppUser>>($"api/user?search={SearchText}");
+            if (users != null) userList = users;
+        }
+        catch (Exception ex) { await JS.InvokeVoidAsync("console.error", $"Error loading users: {ex.Message}"); }
+        isLoading = false;
+        StateHasChanged();
+    }
+
+    private async Task LoadBranches()
+    {
+        try
+        {
+            var branches = await Http.GetFromJsonAsync<List<BranchModel>>("api/user/branches");
+            if (branches != null) branchesList = branches;
+        }
+        catch (Exception ex) { await JS.InvokeVoidAsync("console.error", $"Error loading branches: {ex.Message}"); }
+    }
+
+    // --- MODAL LOGIC ---
+    private void AddUser_Click()
+    {
+        isEditMode = false;
+        modalUser = new AppUser { Role = "Clerk", BranchID = branchesList.FirstOrDefault()?.BranchID ?? 1 }; 
+        ModalRole = "Clerk"; // Triggers logic
+        passwordInput = "";
+        showModal = true;
+    }
+
+    private void EditUser_Click(AppUser user)
+    {
+        isEditMode = true;
+        modalUser = new AppUser 
+        { 
+            UserID = user.UserID,
+            Username = user.Username,
+            FullName = user.FullName,
+            Email = user.Email,
+            Role = user.Role,
+            BranchID = user.BranchID,
+            PasswordHash = user.PasswordHash
+        };
+        ModalRole = user.Role; // Triggers logic
+        passwordInput = ""; 
+        showModal = true;
+    }
+
+    private void CloseModal() { showModal = false; }
+
+    private async Task SaveUser()
+    {
+        // 1. Basic Validation
+        if (string.IsNullOrWhiteSpace(modalUser.FullName) || string.IsNullOrWhiteSpace(modalUser.Username) || string.IsNullOrWhiteSpace(modalUser.Email))
+        {
+            await JS.InvokeVoidAsync("alert", "Please fill in all required fields (Name, Email, Username).");
+            return;
+        }
+
+        // 2. Enterprise Password Regex Check
+        bool isPasswordChanged = !isEditMode || !string.IsNullOrWhiteSpace(passwordInput);
+        if (isPasswordChanged)
+        {
+            var regex = new Regex(@"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$");
+            if (!regex.IsMatch(passwordInput))
+            {
+                await JS.InvokeVoidAsync("alert", "Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, and one number.");
+                return;
+            }
+            modalUser.PasswordHash = passwordInput; 
+        }
+
+        try
+        {
+            HttpResponseMessage response;
+            if (isEditMode)
+            {
+                response = await Http.PutAsJsonAsync($"api/user/{modalUser.UserID}", modalUser);
+            }
+            else
+            {
+                response = await Http.PostAsJsonAsync("api/user", modalUser);
+            }
+
+            if (response.IsSuccessStatusCode)
+            {
+                showModal = false;
+                await LoadData();
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                await JS.InvokeVoidAsync("alert", $"Save failed: {error}");
+            }
+        }
+        catch (Exception ex) { await JS.InvokeVoidAsync("alert", $"Network Error: {ex.Message}"); }
+    }
+
+    // --- SAFEGUARDED DEACTIVATION ---
+    private async Task DeleteUser_Click(AppUser user)
+    {
+        if (user.Role == "Super-Admin")
+        {
+            await JS.InvokeVoidAsync("alert", "Security Alert: You cannot deactivate an Owner/Super-Admin account. Please change their role first if you must remove their access.");
+            return;
+        }
+
+        bool confirm = await JS.InvokeAsync<bool>("confirm", $"Are you sure you want to deactivate {user.FullName}? They will lose access immediately.");
+        if (!confirm) return;
+
+        try
+        {
+            var response = await Http.PutAsync($"api/user/{user.UserID}/deactivate", null);
+            if (response.IsSuccessStatusCode) await LoadData();
+            else await JS.InvokeVoidAsync("alert", $"Deactivation failed: {await response.Content.ReadAsStringAsync()}");
+        }
+        catch (Exception ex) { await JS.InvokeVoidAsync("alert", $"Network Error: {ex.Message}"); }
+    }
+
+    private async Task RestoreUser_Click(AppUser user)
+    {
+        bool confirm = await JS.InvokeAsync<bool>("confirm", "Do you want to reactivate this user account?");
+        if (!confirm) return;
+
+        try
+        {
+            var response = await Http.PutAsync($"api/user/{user.UserID}/restore", null);
+            if (response.IsSuccessStatusCode) await LoadData();
+            else await JS.InvokeVoidAsync("alert", $"Restoration failed: {await response.Content.ReadAsStringAsync()}");
+        }
+        catch (Exception ex) { await JS.InvokeVoidAsync("alert", $"Network Error: {ex.Message}"); }
+    }
+
+    // --- DTOs ---
+    public class BranchModel
+    {
+        public int BranchID { get; set; }
+        public string BranchName { get; set; } = string.Empty;
+    }
+
+    public class AppUser
+    {
+        public int UserID { get; set; }
+        public string Username { get; set; } = string.Empty;
+        public string PasswordHash { get; set; } = string.Empty;
+        public string FullName { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string Role { get; set; } = string.Empty;
+        public int BranchID { get; set; }
+        public string BranchName { get; set; } = string.Empty;
+        public bool IsActive { get; set; }
+
+        public string Initials => string.IsNullOrEmpty(FullName) ? "?" : FullName.Substring(0, 1).ToUpper();
+
+        public string RoleColor => Role switch
+        {
+            "Super-Admin" => "#C0392B",
+            "Manager" => "#2980B9",
+            _ => "#7F8C8D"
+        };
+
+        public string StatusColor => IsActive ? "#27AE60" : "#95A5A6";
+        public string StatusText => IsActive ? "Active" : "Inactive";
+    }
+}

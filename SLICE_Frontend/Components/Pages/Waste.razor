@@ -1,0 +1,288 @@
+﻿@page "/waste"
+@using Microsoft.AspNetCore.Components.Authorization
+@inject HttpClient Http
+
+<PageTitle>Waste Tracker | S.L.I.C.E.</PageTitle>
+
+<div class="waste-background position-relative overflow-hidden">
+    
+    @* --- BACKGROUND PISTON ANIMATIONS --- *@
+    <div class="piston p1"></div>
+    <div class="piston p2"></div>
+    <div class="piston p3"></div>
+    <div class="hazard-line"></div>
+    <div class="black-line"></div>
+
+    @* --- MAIN CARD --- *@
+    <div class="main-card shadow-lg @(isShaking ? "shake" : "")">
+        <div class="row g-0 h-100">
+            
+            @* LEFT COLUMN: FORM *@
+            <div class="col-md-5 p-4 bg-white" style="border-right: 1px solid #BDC3C7; border-radius: 6px 0 0 6px;">
+                
+                <div class="d-flex align-items-center mb-4">
+                    <div class="icon-box bg-factory">
+                        <i class="fa fa-trash text-hazard fs-4"></i>
+                    </div>
+                    <div class="ms-3">
+                        <h4 class="fw-black mb-0 text-factory">WASTE TRACKER</h4>
+                        <span class="text-danger fw-bold" style="font-size: 11px;">LOG STOCK LOSS</span>
+                    </div>
+                </div>
+
+                <div class="hazard-stripe mb-4"></div>
+
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div class="alert alert-danger fw-bold py-2 px-3 mb-3" style="font-size: 12px;">
+                        <i class="fa fa-warning me-2"></i>@errorMessage
+                    </div>
+                }
+
+                <label class="industrial-label">SELECT ITEM</label>
+                <select class="industrial-input mb-4" @bind="newItemId">
+                    <option value="0" disabled selected>-- Choose an item --</option>
+                    @if (inventoryItems != null)
+                    {
+                        @foreach(var item in inventoryItems)
+                        {
+                            <option value="@item.ItemID">@item.ItemName</option>
+                        }
+                    }
+                </select>
+
+                <label class="industrial-label">QUANTITY LOST</label>
+                <input type="number" class="industrial-input mb-4" @bind="newQty" placeholder="e.g. 5" />
+
+                <label class="industrial-label">REASON FOR LOSS</label>
+                <textarea class="industrial-input mb-4" style="height: 80px;" @bind="newReason" placeholder="e.g. Dropped on floor..."></textarea>
+
+                <div class="mt-auto">
+                    <button class="btn-compactor w-100" @onclick="LogWaste_Click">
+                        <i class="fa fa-cog fa-spin me-2"></i> ACTIVATE COMPACTOR
+                    </button>
+                    <button class="btn btn-link w-100 mt-2 text-secondary fw-bold text-decoration-none">CANCEL</button>
+                </div>
+
+            </div>
+
+            @* RIGHT COLUMN: RECENT LOGS *@
+            <div class="col-md-7 p-4 bg-panel" style="border-radius: 0 6px 6px 0; overflow-y: auto;">
+                <h6 class="text-secondary fw-bold mb-4">COMPACTED LOG (RECENT)</h6>
+                
+                @if (recentLogs != null && recentLogs.Count > 0)
+                {
+                    @foreach(var log in recentLogs)
+                    {
+                        <div class="log-item mb-2">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="d-flex align-items-center">
+                                    <div class="alert-box"><i class="fa fa-exclamation-triangle"></i></div>
+                                    <div class="ms-3">
+                                        <div class="fw-bold text-factory">@log.ItemName</div>
+                                        <div class="text-secondary fst-italic" style="font-size: 11px;">@log.Reason</div>
+                                    </div>
+                                </div>
+                                <h4 class="fw-black text-danger mb-0">-@log.QtyWasted.ToString("N0")</h4>
+                            </div>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <p class="text-secondary fw-bold fst-italic"><i class="fa fa-info-circle me-2"></i>No recent waste logged for this branch.</p>
+                }
+            </div>
+        </div>
+    </div>
+
+    @* --- THE COMPACTOR ANIMATION OVERLAY --- *@
+    @if (isCompacting)
+    {
+        <div class="compactor-overlay">
+            <div class="compactor-plate d-flex justify-content-center align-items-end pb-5">
+                <div class="text-center mb-5">
+                    <h1 class="fw-black text-hazard" style="font-size: 48px; text-shadow: 0px 5px 15px rgba(0,0,0,0.5);">COMPACTING...</h1>
+                    <i class="fa fa-cog fa-spin text-white mt-3" style="font-size: 40px; text-shadow: 0px 5px 15px rgba(0,0,0,0.5);"></i>
+                </div>
+            </div>
+        </div>
+    }
+
+</div>
+
+<style>
+    /* Industrial Theme Colors */
+    :root { --factory-dark: #2C3E50; --hazard-yellow: #F1C40F; --panel-grey: #ECF0F1; }
+    .bg-factory { background-color: var(--factory-dark); }
+    .text-factory { color: var(--factory-dark); }
+    .text-hazard { color: var(--hazard-yellow); }
+    .bg-panel { background-color: var(--panel-grey); }
+
+    /* Background Setup */
+    .waste-background { 
+        height: calc(100vh - 60px); 
+        background: linear-gradient(180deg, #2C3E50 0%, #1C2833 100%); 
+        margin: -30px; 
+        display: flex; justify-content: center; align-items: center;
+    }
+
+    /* Background Piston Animations */
+    .piston { position: absolute; background: rgba(0,0,0,0.15); }
+    .p1 { width: 100px; height: 400px; left: 10%; animation: pistonUp 4s infinite alternate ease-in-out; }
+    .p2 { width: 150px; height: 500px; right: 20%; top: -100px; animation: pistonDown 6s infinite alternate ease-in-out; }
+    .p3 { width: 80px; height: 300px; left: 40%; animation: pistonUp 5s infinite alternate ease-in-out; }
+    
+    .hazard-line { position: absolute; width: 100%; height: 10px; bottom: 120px; background: rgba(241, 196, 15, 0.8); z-index: 1; }
+    .black-line { position: absolute; width: 100%; height: 10px; bottom: 100px; background: rgba(0,0,0, 0.8); z-index: 1; }
+
+    @@keyframes pistonUp { from { transform: translateY(-100px); } to { transform: translateY(0); } }
+    @@keyframes pistonDown { from { transform: translateY(100px); } to { transform: translateY(0); } }
+
+    /* Card & Form Styles */
+    .main-card { width: 1000px; height: 650px; border-radius: 6px; z-index: 10; position: relative; }
+    .icon-box { width: 48px; height: 48px; border-radius: 4px; display: flex; align-items: center; justify-content: center; }
+    .hazard-stripe { height: 4px; background: repeating-linear-gradient(45deg, #F1C40F, #F1C40F 10px, #000 10px, #000 20px); }
+    
+    .industrial-label { font-size: 10px; font-weight: bold; color: #95A5A6; margin-bottom: 5px; display: block; }
+    .industrial-input { 
+        width: 100%; height: 45px; border: 2px solid #BDC3C7; border-radius: 4px; padding: 0 12px;
+        font-weight: 600; color: var(--factory-dark); transition: border-color 0.2s;
+    }
+    .industrial-input:focus { border-color: var(--hazard-yellow); outline: none; }
+
+    .btn-compactor { 
+        background-color: #C0392B; color: white; height: 60px; font-weight: 900; font-size: 14px; 
+        border: none; border-radius: 4px; transition: background 0.2s; 
+    }
+    .btn-compactor:hover { background-color: #A93226; }
+
+    /* Log Item */
+    .log-item { background: white; border: 1px solid #BDC3C7; border-bottom: 3px solid #BDC3C7; border-radius: 2px; padding: 10px 15px; }
+    .alert-box { width: 30px; height: 30px; background: var(--panel-grey); border-radius: 4px; display: flex; align-items: center; justify-content: center; color: var(--hazard-yellow); }
+
+    /* COMPACTOR SLAM ANIMATION OVERLAY (FIXED TO BE ABSOLUTE) */
+    .compactor-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.3); z-index: 9999; }
+    .compactor-plate { 
+        width: 100%; height: 100%; background-color: #212F3C; border-bottom: 20px solid var(--hazard-yellow);
+        animation: slamDown 0.3s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+    }
+    @@keyframes slamDown { from { transform: translateY(-100%); } to { transform: translateY(0); } }
+
+    /* Screen Shake */
+    .shake { animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
+    @@keyframes shake { 10%, 90% { transform: translate3d(-2px, 0, 0); } 20%, 80% { transform: translate3d(4px, 0, 0); } 30%, 50%, 70% { transform: translate3d(-6px, 0, 0); } 40%, 60% { transform: translate3d(6px, 0, 0); } }
+</style>
+
+@code {
+    // 1. Catch the user's digital ID badge!
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
+
+    private List<MasterInventory>? inventoryItems;
+    private List<WasteRecord>? recentLogs;
+    
+    private int newItemId = 0;
+    private decimal newQty;
+    private string newReason = "";
+    
+    private bool isCompacting = false;
+    private bool isShaking = false;
+    private string errorMessage = "";
+
+    // 2. These are now 0 by default, waiting to be filled by the logged-in user
+    private int currentBranchId = 0; 
+    private int currentUserId = 0; 
+
+    protected override async Task OnInitializedAsync()
+    {
+        // 3. Read the ID badge and assign the IDs!
+        var authState = await AuthStateTask;
+        var user = authState.User;
+
+        if (user.Identity != null && user.Identity.IsAuthenticated)
+        {
+            int.TryParse(user.FindFirst("UserID")?.Value, out currentUserId);
+            int.TryParse(user.FindFirst("BranchID")?.Value, out currentBranchId);
+        }
+
+        // 4. Fetch data for this specific branch
+        try { inventoryItems = await Http.GetFromJsonAsync<List<MasterInventory>>($"api/inventory/branch/{currentBranchId}"); } catch { }
+        await LoadRecentLogs();
+    }
+
+    private async Task LoadRecentLogs()
+    {
+        try 
+        { 
+            recentLogs = await Http.GetFromJsonAsync<List<WasteRecord>>($"api/waste/recent/{currentBranchId}"); 
+        } 
+        catch (Exception ex)
+        {
+            errorMessage = "Could not load recent logs: " + ex.Message;
+        }
+    }
+
+    private async Task LogWaste_Click()
+    {
+        errorMessage = ""; // Clear old errors
+        if (newItemId == 0 || newQty <= 0) 
+        {
+            errorMessage = "Please select an item and enter a quantity greater than zero.";
+            return;
+        }
+
+        // 1. Drop the Plate
+        isCompacting = true;
+        StateHasChanged(); 
+        
+        // 2. Shake the screen right after impact
+        await Task.Delay(300);
+        isShaking = true;
+        StateHasChanged();
+
+        // Let the compactor "grind"
+        await Task.Delay(1200); 
+
+        // 3. Send data to the API using the logged-in User's IDs
+        try
+        {
+            var request = new { BranchID = currentBranchId, ItemID = newItemId, Qty = newQty, Reason = newReason, UserID = currentUserId };
+            var response = await Http.PostAsJsonAsync("api/waste/record", request);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                errorMessage = "Database Error: " + await response.Content.ReadAsStringAsync();
+            }
+            else
+            {
+                // Clean up UI on success
+                newItemId = 0;
+                newQty = 0;
+                newReason = "";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Network Error: " + ex.Message;
+        }
+
+        // 4. Reset animations and fetch fresh data
+        isCompacting = false;
+        isShaking = false;
+        await LoadRecentLogs(); 
+    }
+
+    public class MasterInventory
+    {
+        public int ItemID { get; set; }
+        public string ItemName { get; set; } = string.Empty;
+    }
+
+    public class WasteRecord
+    {
+        public string ItemName { get; set; } = string.Empty;
+        public decimal QtyWasted { get; set; }
+        public string Reason { get; set; } = string.Empty;
+    }
+}

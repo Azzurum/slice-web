@@ -1,0 +1,231 @@
+﻿@using Microsoft.AspNetCore.Components.Forms
+@inject HttpClient Http
+@inject IJSRuntime JS
+
+@if (IsVisible)
+{
+    <div class="modal-overlay" @onclick="Cancel">
+        <div class="modal-window" @onclick:stopPropagation="true">
+            
+            @* HEADER *@
+            <div class="modal-header">
+                <div class="d-flex">
+                    <div class="icon-box">
+                        <i class="fa fa-leaf"></i>
+                    </div>
+                    <div class="header-text">
+                        <div class="title">@(ExistingItem == null ? "New Ingredient" : "Edit Ingredient")</div>
+                        <div class="subtitle">Register a raw material to the Master Database.</div>
+                    </div>
+                </div>
+                <button class="btn-close" @onclick="Cancel" title="Close">
+                    <i class="fa fa-times"></i>
+                </button>
+            </div>
+
+            @* BODY *@
+            <div class="modal-body">
+                
+                @* IMAGE UPLOAD *@
+                <div class="upload-container">
+                    <div class="img-preview">
+                        @if (!string.IsNullOrEmpty(UploadedFileName))
+                        {
+                            <img src="Images/Ingredients/@UploadedFileName" class="preview-img" onerror="this.style.display='none'" />
+                        }
+                        else
+                        {
+                            <i class="fa fa-image placeholder-icon"></i>
+                        }
+                    </div>
+                    <div class="upload-text">
+                        <div class="upload-title">INGREDIENT IMAGE</div>
+                        <div class="upload-sub">Upload a clear photo (.jpg, .png)</div>
+                    </div>
+                    <div class="upload-btn-wrapper">
+                        <InputFile OnChange="HandleImageUpload" class="file-input" accept=".jpg,.jpeg,.png,.webp" />
+                        <button class="btn-browse">
+                            <i class="fa fa-folder-open me-2"></i> BROWSE
+                        </button>
+                    </div>
+                </div>
+
+                @* FORM FIELDS *@
+                <div class="input-lbl">INGREDIENT NAME</div>
+                <input type="text" class="modern-input mb-15" @bind="ItemName" />
+
+                <div class="input-lbl">CATEGORY</div>
+                <select class="modern-input mb-25" @bind="Category">
+                    <option value="Dough & Flour">Dough & Flour</option>
+                    <option value="Cheese & Dairy">Cheese & Dairy</option>
+                    <option value="Meat & Protein">Meat & Protein</option>
+                    <option value="Sauce & Spices">Sauce & Spices</option>
+                    <option value="Vegetables">Vegetables</option>
+                    <option value="Beverages">Beverages</option>
+                    <option value="Packaging">Packaging</option>
+                </select>
+
+                @* CONVERSION PANEL *@
+                <div class="conversion-panel">
+                    <div class="conv-header">
+                        <i class="fa fa-balance-scale me-2"></i>
+                        <span>MEASUREMENT & CONVERSION</span>
+                    </div>
+
+                    <div class="conv-grid">
+                        <div class="conv-col">
+                            <div class="input-lbl">PURCHASED AS (Bulk)</div>
+                            <input type="text" class="modern-input" placeholder="e.g., Sack, Box" @bind="BulkUnit" />
+                        </div>
+                        <div class="conv-arrow"><i class="fa fa-arrow-right"></i></div>
+                        <div class="conv-col">
+                            <div class="input-lbl">RECIPE UNIT (Base)</div>
+                            <select class="modern-input" @bind="BaseUnit">
+                                <option value="g">g</option>
+                                <option value="ml">ml</option>
+                                <option value="pcs">pcs</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="input-lbl mt-15">CONVERSION RATIO (Base units per Bulk unit)</div>
+                    <input type="number" class="modern-input ratio-input" @bind="ConversionRatio" />
+                    <div class="ratio-hint">Example: 1 Sack = 25,000 g (Enter 25000)</div>
+                </div>
+
+            </div>
+
+            @* FOOTER *@
+            <div class="modal-footer">
+                <button class="btn-cancel" @onclick="Cancel">CANCEL</button>
+                <button class="btn-save" @onclick="Save">
+                    <i class="fa fa-check me-2"></i> SAVE ITEM
+                </button>
+            </div>
+
+        </div>
+    </div>
+}
+
+<style>
+    /* OVERLAY */
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(244, 246, 247, 0.8); z-index: 1000; display: flex; justify-content: center; align-items: center; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    
+    /* WINDOW (Width="520", DropShadowEffect) */
+    .modal-window { width: 520px; background: white; border-radius: 12px; box-shadow: 0 5px 25px rgba(44, 62, 80, 0.2); overflow: hidden; display: flex; flex-direction: column; max-height: 90vh; }
+
+    /* HEADER */
+    .modal-header { display: flex; justify-content: space-between; padding: 25px 25px 20px 25px; }
+    .icon-box { background: #E8F8F5; width: 46px; height: 46px; border-radius: 10px; display: flex; justify-content: center; align-items: center; color: #27AE60; font-size: 20px; margin-right: 15px; }
+    .title { font-size: 22px; font-weight: 900; color: #2C3E50; } /* Black */
+    .subtitle { font-size: 12px; color: #95A5A6; margin-top: 2px; }
+    .btn-close { background: transparent; border: none; color: #BDC3C7; font-size: 14px; cursor: pointer; align-self: flex-start; padding: 5px; }
+    .btn-close:hover { color: #E74C3C; }
+
+    /* BODY */
+    .modal-body { padding: 0 25px; overflow-y: auto; }
+    
+    /* UPLOAD AREA */
+    .upload-container { background: #FAFCFC; border: 1px solid #EAECEE; border-radius: 8px; padding: 15px; display: flex; align-items: center; margin-bottom: 20px; }
+    .img-preview { width: 60px; height: 60px; background: white; border: 1px solid #EAECEE; border-radius: 8px; display: flex; justify-content: center; align-items: center; margin-right: 15px; overflow: hidden; }
+    .preview-img { width: 100%; height: 100%; object-fit: cover; }
+    .placeholder-icon { color: #D0D3D4; font-size: 20px; }
+    .upload-text { flex-grow: 1; }
+    .upload-title { font-size: 11px; font-weight: 700; color: #7F8C8D; margin-bottom: 2px; }
+    .upload-sub { font-size: 12px; font-weight: 600; color: #BDC3C7; }
+    
+    .upload-btn-wrapper { position: relative; overflow: hidden; display: inline-block; }
+    .btn-browse { width: 100px; height: 36px; background: #F0F3F4; color: #2C3E50; font-weight: 700; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; pointer-events: none; }
+    .file-input { position: absolute; left: 0; top: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+    .upload-btn-wrapper:hover .btn-browse { background: #EAECEE; }
+
+    /* INPUTS (Style="ModernInput") */
+    .input-lbl { font-size: 11px; font-weight: 700; color: #95A5A6; margin-bottom: 6px; margin-left: 4px; }
+    .modern-input { background: #FAFCFC; border: 1px solid #EAECEE; border-radius: 6px; height: 42px; padding: 0 12px; font-size: 14px; font-weight: 600; color: #2C3E50; width: 100%; outline: none; transition: 0.2s; font-family: 'Segoe UI'; }
+    .modern-input:focus { background: white; border-color: #E67E22; }
+    .mb-15 { margin-bottom: 15px; }
+    .mb-25 { margin-bottom: 25px; }
+    .mt-15 { margin-top: 15px; }
+
+    /* CONVERSION PANEL */
+    .conversion-panel { background: #FAFCFC; border: 1px solid #EAECEE; border-radius: 8px; padding: 20px; margin-bottom: 10px; }
+    .conv-header { color: #2980B9; font-size: 11px; font-weight: 900; margin-bottom: 15px; display: flex; align-items: center; } /* Black */
+    .conv-grid { display: grid; grid-template-columns: 1fr 30px 1fr; align-items: end; }
+    .conv-arrow { display: flex; justify-content: center; color: #BDC3C7; font-size: 12px; padding-bottom: 15px; }
+    
+    .ratio-input { color: #E67E22; font-weight: 900; } /* Black */
+    .ratio-hint { font-size: 11px; font-weight: 600; color: #95A5A6; margin-top: 6px; margin-left: 4px; }
+
+    /* FOOTER */
+    .modal-footer { padding: 20px 25px 25px 25px; display: flex; justify-content: flex-end; align-items: center; }
+    .btn-cancel { width: 90px; height: 42px; background: transparent; border: none; color: #95A5A6; font-weight: 700; cursor: pointer; margin-right: 10px; font-size: 14px; transition: 0.2s; }
+    .btn-cancel:hover { color: #2C3E50; }
+    
+    .btn-save { width: 140px; height: 42px; background: #27AE60; color: white; font-weight: 700; font-size: 13px; border: none; border-radius: 6px; cursor: pointer; transition: 0.2s; display: flex; justify-content: center; align-items: center; }
+    .btn-save:hover { opacity: 0.9; }
+</style>
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public EventCallback<bool> IsVisibleChanged { get; set; }
+    [Parameter] public object? ExistingItem { get; set; } // Map to your Inventory DTO
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    // Form Fields
+    private string ItemName = "";
+    private string Category = "Dough & Flour";
+    private string BulkUnit = "";
+    private string BaseUnit = "g";
+    private decimal ConversionRatio = 1000;
+    private string UploadedFileName = "";
+
+    protected override void OnParametersSet()
+    {
+        if (ExistingItem != null)
+        {
+            // If editing, map your DTO fields here. Example:
+            // ItemName = ExistingItem.ItemName;
+            // ConversionRatio = ExistingItem.ConversionRatio;
+            // UploadedFileName = ExistingItem.ImagePath;
+        }
+        else if (IsVisible && string.IsNullOrEmpty(ItemName))
+        {
+            // Reset for new item
+            ItemName = ""; Category = "Dough & Flour"; BulkUnit = ""; BaseUnit = "g"; ConversionRatio = 1000; UploadedFileName = "";
+        }
+    }
+
+    private async Task HandleImageUpload(InputFileChangeEventArgs e)
+    {
+        // In Blazor, you'll want to upload the file to your API endpoint here.
+        // For now, we simulate the UI change.
+        var file = e.File;
+        if (file != null)
+        {
+            UploadedFileName = file.Name; // Simulate the visual change
+            StateHasChanged();
+        }
+    }
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(ItemName))
+        {
+            await JS.InvokeVoidAsync("alert", "Ingredient name is required.");
+            return;
+        }
+
+        // Post to your API here!
+        
+        await OnSaved.InvokeAsync();
+        await CloseModal();
+    }
+
+    private async Task Cancel() => await CloseModal();
+
+    private async Task CloseModal()
+    {
+        IsVisible = false;
+        await IsVisibleChanged.InvokeAsync(IsVisible);
+    }
+}

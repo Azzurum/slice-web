@@ -1,0 +1,755 @@
+﻿@page "/pos"
+@using Microsoft.AspNetCore.Components.Authorization
+@using SLICE_Frontend.Components.Dialogs
+@inject HttpClient Http
+@inject IJSRuntime JS
+
+<PageTitle>Point of Sale | S.L.I.C.E.</PageTitle>
+
+<div class="system-background position-relative">
+
+    <div class="main-layout">
+        
+        @* LEFT COLUMN: MENU CATALOG *@
+        <div class="catalog-col">
+            <div class="header-grid">
+                <div class="header-text">
+                    <div class="main-title">Counter</div>
+                    <div class="sub-title">Select items to add to the order.</div>
+                </div>
+
+                <div class="search-cell">
+                    <div class="search-border shadow-soft">
+                        <i class="fa fa-search search-icon"></i>
+                        <input type="text" class="search-input" placeholder="Search Menu Items..." 
+                               @bind="SearchText" @bind:event="oninput" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="category-scroll">
+                <div class="category-stack">
+                    @foreach (var cat in Categories)
+                    {
+                        <button class="category-chip @(SelectedCategory == cat ? "chip-active" : "")" @onclick="() => SelectCategory(cat)">
+                            @cat
+                        </button>
+                    }
+                </div>
+            </div>
+
+            <div class="menu-scroll-viewer">
+                <div class="menu-wrap-panel">
+                    @if (isLoading)
+                    {
+                        <div class="loading-state"><i class="fa fa-spinner fa-spin"></i></div>
+                    }
+                    else
+                    {
+                        @foreach (var product in FilteredProducts)
+                        {
+                            <button class="menu-card shadow-card @(!product.IsInStock ? "out-of-stock" : "")" 
+                                    @onclick="() => AddToCart(product)" disabled="@(!product.IsInStock)">
+                                
+                                @if (!product.IsInStock)
+                                {
+                                    <div class="oos-badge">OUT OF STOCK</div>
+                                }
+
+                                <div class="card-grid">
+                                    <div class="card-img-area">
+                                        @if(product.HasImage) { <img src="Images/Menu/@product.ImagePath" class="card-img" onerror="this.style.display='none'" /> }
+                                        else { <i class="fa fa-cutlery card-fallback-icon"></i> }
+                                    </div>
+
+                                    <div class="card-info-area">
+                                        <div class="card-name">@product.DisplayName</div>
+                                        @if (product.HasSize)
+                                        {
+                                            <div class="card-size">@product.SizeText</div>
+                                        }
+                                        <div class="card-price-badge">@product.FormattedPrice</div>
+                                    </div>
+                                </div>
+                            </button>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+
+        @* RIGHT COLUMN: ORDER TICKET *@
+        <div class="ticket-col">
+            <div class="ticket-padding">
+                
+                <div class="ticket-header">
+                    <div class="ticket-title">Current Order</div>
+                    <div class="ticket-date">@DateTime.Now.ToString("MMMM dd, yyyy")</div>
+                    <div class="ticket-separator"></div>
+                </div>
+
+                <div class="cart-scroll-viewer">
+                    @foreach (var item in CartItems)
+                    {
+                        <div class="cart-row">
+                            <div class="cart-name">@item.DisplayName</div>
+                            
+                            <div class="cart-controls">
+                                <button class="btn-minus" @onclick="() => DecreaseQty(item)">
+                                    <span>—</span>
+                                </button>
+                                
+                                <input type="number" class="qty-input" value="@item.Qty" 
+                                       @onchange="@((ChangeEventArgs e) => UpdateCartQty(item, e.Value))" min="1" max="@item.MaxCookable" />
+                                
+                                <button class="btn-plus" @onclick="() => IncreaseQty(item)">
+                                    <span>+</span>
+                                </button>
+                            </div>
+
+                            <div class="cart-price">@item.TotalPrice.ToString("C0")</div>
+                        </div>
+                    }
+                </div>
+
+                @* TOTALS & CHECKOUT *@
+                <div class="checkout-area">
+                    
+                    <div class="totals-row mb-10">
+                        <span class="totals-lbl">Subtotal:</span>
+                        <span class="totals-val text-dark">@SubTotal.ToString("C2")</span>
+                    </div>
+
+                    @if (HasDiscount)
+                    {
+                        <div class="totals-row mb-15">
+                            <div class="d-flex align-items-center">
+                                <span class="totals-lbl text-pizza-red me-2">Discount:</span>
+                                <div class="discount-badge">@ActiveDiscount.DiscountName</div>
+                                <button class="btn-remove-discount" @onclick="RemoveDiscount">
+                                    <i class="fa fa-times"></i>
+                                </button>
+                            </div>
+                            <span class="totals-val text-pizza-red fw-bold">-@DiscountAmount.ToString("C2")</span>
+                        </div>
+                    }
+
+                    <div class="totals-row mb-25">
+                        <span class="grand-lbl">Total Due</span>
+                        <span class="grand-val">@GrandTotal.ToString("C2")</span>
+                    </div>
+
+                    <div class="action-grid mb-20">
+                        <button class="btn-discount" @onclick="OpenDiscountDialog" title="Apply Discount">
+                            <i class="fa fa-tags"></i>
+                        </button>
+                        <div class="action-spacer"></div>
+                        <button class="btn-checkout" @onclick="OpenPaymentDialog" disabled="@(CartItems.Count == 0)">
+                            PLACE ORDER
+                        </button>
+                    </div>
+
+                    <div class="footer-actions">
+                        <button class="btn-footer me-20" @onclick="ClearCart">
+                            <i class="fa fa-trash text-pizza-red me-8"></i>
+                            <span class="text-pizza-red fw-semibold">Clear Order</span>
+                        </button>
+                        <button class="btn-footer" @onclick="OpenVoidWindow">
+                            <i class="fa fa-history text-brand-blue me-8"></i>
+                            <span class="text-brand-blue fw-semibold">Void Transaction</span>
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* ========================================== *@
+    @* MODALS                                     *@
+    @* ========================================== *@
+
+    @* 1. DISCOUNT MODAL (Powered by Component) *@
+    <ApplyDiscountModal 
+        IsVisible="showDiscountModal" 
+        IsVisibleChanged="@((bool val) => showDiscountModal = val)" 
+        Discounts="AvailableDiscounts" 
+        OnDiscountSelected="ApplyDiscount" />
+
+    @* 2. PAYMENT GATEWAY MODAL (Powered by Component) *@
+    @if (showPaymentModal)
+    {
+        <PaymentGatewayModal 
+            TotalAmount="GrandTotal" 
+            OnPaymentComplete="HandlePaymentComplete" 
+            OnCancel="() => showPaymentModal = false" />
+    }
+
+   @* 3. RECEIPT MODAL (Powered by Component) *@
+    <ReceiptModal 
+        IsVisible="showReceiptModal" 
+        IsVisibleChanged="@((bool val) => showReceiptModal = val)"
+        CartItems="CartItems"
+        SubTotal="SubTotal"
+        DiscountAmount="DiscountAmount"
+        GrandTotal="GrandTotal"
+        PaymentMethod="@payMethod"
+        ReferenceNumber="@GeneratedRefNum"
+        OnClose="CloseReceipt" />
+
+    @* 4. VOID MODAL (Fixed component name to match VoidSaleModal.razor) *@
+    <VoidSaleModal IsVisible="showVoidModal" IsVisibleChanged="@((bool val) => showVoidModal = val)" Transactions="TodaySales" OnVoidConfirmed="ProcessVoid" />
+
+    @* THE SEPARATED ANIMATION COMPONENT! *@
+    <CookingAnimation IsCooking="@IsCooking" />
+
+</div>
+
+<style>
+    /* BASE SETTINGS */
+    :root {
+        --brand-orange: #E67E22;
+        --text-dark: #2C3E50;
+        --text-light: #95A5A6;
+        --pizza-red: #E74C3C;
+        --brand-blue: #2980B9;
+    }
+
+    .text-pizza-orange { color: var(--brand-orange) !important; }
+    .text-pizza-red { color: var(--pizza-red) !important; }
+    .text-brand-blue { color: var(--brand-blue) !important; }
+    .text-dark { color: var(--text-dark) !important; }
+    .fw-black { font-weight: 900 !important; }
+
+    .system-background {
+        background-color: #FDFBF7;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        height: calc(100vh - 60px);
+        overflow: hidden;
+    }
+
+    /* MAIN LAYOUT */
+    .main-layout { display: grid; grid-template-columns: 1fr 420px; height: 100%; }
+
+    /* LEFT COLUMN */
+    .catalog-col { padding: 30px; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* HEADER */
+    .header-grid { display: grid; grid-template-columns: 1fr 300px; margin-bottom: 20px; align-items: center; flex-shrink: 0; }
+    .main-title { font-size: 32px; font-weight: 900; color: var(--text-dark); }
+    .sub-title { font-size: 16px; color: var(--text-light); }
+
+    .search-cell { display: flex; justify-content: flex-end; }
+    .search-border { background: white; border-radius: 10px; height: 45px; border: 1px solid #EAECEE; display: flex; align-items: center; padding: 0 15px; width: 100%; }
+    .shadow-soft { box-shadow: 0 1px 10px rgba(189, 195, 199, 0.15); }
+    .search-icon { color: #95A5A6; font-size: 14px; margin-right: 10px; }
+    .search-input { border: none; outline: none; background: transparent; font-size: 15px; font-weight: 600; color: var(--text-dark); width: 100%; }
+
+    /* CATEGORY CHIPS */
+    .category-scroll { overflow-x: auto; margin-bottom: 20px; padding: 5px 4px; flex-shrink: 0; }
+    .category-stack { display: flex; }
+    .category-chip { background: white; border-radius: 20px; margin-right: 10px; padding: 10px 20px; color: #7F8C8D; font-weight: 700; border: none; cursor: pointer; white-space: nowrap; box-shadow: 0 2px 5px rgba(189, 195, 199, 0.1); transition: 0.2s; }
+    .category-chip:hover { background: #FFF3E0; color: var(--brand-orange); }
+    .chip-active, .chip-active:hover { background: var(--brand-orange); color: white; }
+
+    /* MENU CARDS */
+    .menu-scroll-viewer { overflow-y: auto; flex-grow: 1; padding-bottom: 20px; }
+    .menu-scroll-viewer::-webkit-scrollbar { display: none; }
+    .menu-wrap-panel { display: flex; flex-wrap: wrap; }
+
+    .menu-card { background: white; border-radius: 16px; margin: 0 15px 15px 0; width: 200px; height: 240px; border: none; padding: 0; cursor: pointer; position: relative; transition: transform 0.1s; }
+    .shadow-card { box-shadow: 0 4px 15px rgba(189, 195, 199, 0.3); }
+    .menu-card:hover:not(:disabled) { transform: translateY(-4px); }
+    .menu-card:disabled { cursor: not-allowed; }
+    
+    .out-of-stock { opacity: 0.6; }
+    .oos-badge { position: absolute; top: 15px; left: 50%; transform: translateX(-50%); background: #E74C3C; color: white; font-weight: 900; font-size: 11px; padding: 4px 10px; border-radius: 6px; z-index: 10; }
+
+    .card-grid { display: grid; grid-template-rows: 120px auto; height: 100%; border-radius: 16px; overflow: hidden; }
+    .card-img-area { background: white; border-bottom: 1px solid #F0F3F4; display: flex; align-items: center; justify-content: center; position: relative; }
+    .card-img { width: calc(100% - 20px); height: calc(100% - 20px); object-fit: contain; }
+    .card-fallback-icon { font-size: 40px; color: #F5CBA7; }
+
+    .card-info-area { padding: 10px 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .card-name { font-weight: 700; font-size: 15px; color: var(--text-dark); text-align: center; height: 40px; line-height: 1.2; display: flex; align-items: flex-start; justify-content: center; }
+    .card-size { font-size: 12px; font-weight: 900; color: #95A5A6; margin: -5px 0 5px 0; }
+    .card-price-badge { background: var(--brand-orange); color: white; font-weight: 700; font-size: 14px; padding: 5px 15px; border-radius: 8px; }
+
+    /* ORDER TICKET */
+    .ticket-col { background: white; border-left: 1px solid #EEE; }
+    .ticket-padding { padding: 30px; display: flex; flex-direction: column; height: 100%; }
+
+    .ticket-header { margin-bottom: 20px; margin-top: 10px; }
+    .ticket-title { font-size: 22px; font-weight: 700; color: var(--text-dark); }
+    .ticket-date { font-size: 12px; color: var(--text-light); }
+    .ticket-separator { background: #F5F5F5; height: 1px; width: 100%; margin-top: 20px; }
+
+    .cart-scroll-viewer { overflow-y: auto; flex-grow: 1; margin-bottom: 20px; padding-right: 5px; }
+    .cart-scroll-viewer::-webkit-scrollbar { width: 5px; }
+    .cart-scroll-viewer::-webkit-scrollbar-thumb { background: #BDC3C7; border-radius: 3px; }
+    
+    .cart-row { display: grid; grid-template-columns: 1fr 110px 80px; align-items: center; margin-bottom: 15px; }
+    .cart-name { font-size: 14px; font-weight: 600; color: var(--text-dark); padding-right: 10px; line-height: 1.2; }
+    
+    .cart-controls { display: flex; align-items: center; justify-content: center; }
+    .btn-minus, .btn-plus { width: 28px; height: 28px; border-radius: 14px; background: white; border: 1.5px solid #EAECEE; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: 0.1s; padding: 0; outline: none; }
+    .btn-minus { color: #E74C3C; }
+    .btn-minus:hover { background: #FDEDEC; border-color: #E74C3C; }
+    .btn-minus span { font-size: 10px; font-weight: 900; margin-top: -1px; }
+    .btn-plus { color: #27AE60; }
+    .btn-plus:hover { background: #E8F8F5; border-color: #27AE60; }
+    .btn-plus span { font-size: 16px; font-weight: 500; margin-top: -2px; }
+
+    .qty-input { width: 40px; text-align: center; font-size: 16px; font-weight: 900; color: var(--text-dark); background: #F8F9F9; border: 1px solid #EAECEE; border-radius: 4px; padding: 2px 0; margin: 0 5px; outline: none; }
+
+    .cart-price { text-align: right; font-weight: 700; font-size: 14px; color: var(--text-dark); }
+
+    /* CHECKOUT AREA */
+    .checkout-area { margin-top: auto; }
+    .totals-row { display: flex; justify-content: space-between; align-items: center; }
+    .mb-10 { margin-bottom: 10px; }
+    .mb-15 { margin-bottom: 15px; }
+    .mb-20 { margin-bottom: 20px; }
+    .mb-25 { margin-bottom: 25px; }
+    .me-8 { margin-right: 8px; }
+    .me-20 { margin-right: 20px; }
+
+    .totals-lbl { font-size: 14px; color: var(--text-light); }
+    .totals-val { font-size: 14px; font-weight: 600; }
+    
+    .discount-badge { background: #FDEDEC; color: #E74C3C; font-size: 11px; font-weight: 700; padding: 2px 5px; border-radius: 4px; margin-right: 5px; }
+    .btn-remove-discount { background: transparent; border: none; color: #95A5A6; font-size: 10px; cursor: pointer; outline: none; }
+    
+    .grand-lbl { font-size: 16px; font-weight: 600; color: var(--text-light); align-self: flex-end; }
+    .grand-val { font-size: 32px; font-weight: 900; color: var(--text-dark); }
+
+    .action-grid { display: grid; grid-template-columns: 1fr 15px 3fr; }
+    .action-spacer { width: 15px; }
+    
+    .btn-discount { background: #F1C40F; color: white; border: none; border-radius: 12px; height: 60px; font-size: 24px; cursor: pointer; transition: 0.2s; outline: none; }
+    .btn-discount:hover:not(:disabled) { filter: brightness(1.1); transform: translateY(-2px); }
+
+    .btn-checkout { background: var(--brand-orange); color: white; border: none; border-radius: 12px; height: 60px; font-size: 18px; font-weight: 900; cursor: pointer; transition: 0.2s; outline: none; }
+    .btn-checkout:hover:not(:disabled) { filter: brightness(1.1); transform: translateY(-2px); }
+    .btn-checkout:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .footer-actions { display: flex; justify-content: center; }
+    .btn-footer { background: transparent; border: none; cursor: pointer; display: flex; align-items: center; outline: none; transition: 0.2s; }
+    .btn-footer:hover { opacity: 0.8; }
+
+    .loading-state { text-align: center; width: 100%; padding-top: 50px; font-size: 32px; color: #BDC3C7; }
+</style>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
+
+    private List<ProductDisplayDto> AllProducts = new();
+    private List<ProductDisplayDto> FilteredProducts = new();
+    private List<SalesCartItemDto> CartItems = new();
+    private List<string> Categories = new();
+
+    private int currentBranchId = 0;
+    private int currentUserId = 0;
+    private string currentUserRole = "Clerk";
+    private bool isLoading = true;
+    public bool IsCooking = false;
+
+    // Totals
+    private decimal SubTotal => CartItems.Sum(x => x.TotalPrice);
+    private decimal DiscountAmount = 0;
+    private decimal GrandTotal => SubTotal - DiscountAmount;
+    
+    private DiscountDto? ActiveDiscount;
+    private bool HasDiscount => ActiveDiscount != null;
+
+    private string _selectedCategory = "All";
+    public string SelectedCategory
+    {
+        get => _selectedCategory;
+        set { _selectedCategory = value; ApplyFilters(); }
+    }
+
+    private string _searchText = "";
+    public string SearchText
+    {
+        get => _searchText;
+        set { _searchText = value; ApplyFilters(); }
+    }
+
+    // --- MODAL STATES ---
+    private bool showDiscountModal = false;
+    private List<DiscountDto> AvailableDiscounts = new();
+
+    private bool showPaymentModal = false;
+    private bool showReceiptModal = false;
+    private string GeneratedRefNum = "";
+    private string payMethod = "";
+
+    private bool showVoidModal = false;
+    private List<TransactionDto> TodaySales = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateTask;
+        var user = authState.User;
+
+        if (user.Identity != null && user.Identity.IsAuthenticated)
+        {
+            int.TryParse(user.FindFirst("BranchID")?.Value, out currentBranchId);
+            int.TryParse(user.FindFirst("UserID")?.Value, out currentUserId);
+            currentUserRole = user.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "Clerk";
+        }
+
+        await LoadMenu();
+    }
+
+    private async Task LoadMenu()
+    {
+        isLoading = true;
+        try
+        {
+            var result = await Http.GetFromJsonAsync<List<ProductDisplayDto>>($"api/sales/menu/{currentBranchId}");
+            if (result != null)
+            {
+                AllProducts = result;
+                
+                Categories.Clear();
+                Categories.Add("All");
+                var uniqueCats = AllProducts.Select(x => x.Category).Distinct().OrderBy(c => c);
+                foreach (var cat in uniqueCats) Categories.Add(cat);
+
+                ApplyFilters();
+            }
+        }
+        catch (Exception ex) 
+        { 
+            Console.WriteLine($"Error loading menu: {ex.Message}"); 
+        }
+        isLoading = false;
+        StateHasChanged();
+    }
+
+    private void ApplyFilters()
+    {
+        var query = AllProducts.AsEnumerable();
+        if (SelectedCategory != "All") query = query.Where(p => p.Category == SelectedCategory);
+        if (!string.IsNullOrWhiteSpace(SearchText)) query = query.Where(p => p.DisplayName.Contains(SearchText, StringComparison.OrdinalIgnoreCase));
+        FilteredProducts = query.ToList();
+    }
+
+    private void SelectCategory(string cat) => SelectedCategory = cat;
+
+    // --- CART LOGIC ---
+    private void AddToCart(ProductDisplayDto product)
+    {
+        var existing = CartItems.FirstOrDefault(c => c.ProductID == product.ProductID);
+        int currentQty = existing != null ? existing.Qty : 0;
+
+        if (currentQty + 1 > product.MaxCookable)
+        {
+            JS.InvokeVoidAsync("alert", $"Not enough ingredients! Maximum available is {product.MaxCookable}.");
+            return;
+        }
+
+        if (existing != null) existing.Qty++;
+        else
+        {
+            CartItems.Add(new SalesCartItemDto
+            {
+                ProductID = product.ProductID,
+                RawName = product.RawName,
+                BasePrice = product.BasePrice,
+                MaxCookable = product.MaxCookable,
+                Qty = 1
+            });
+        }
+        UpdateMath();
+    }
+
+    private void IncreaseQty(SalesCartItemDto item)
+    {
+        if (item.Qty + 1 > item.MaxCookable) JS.InvokeVoidAsync("alert", $"Maximum stock limit reached ({item.MaxCookable}).");
+        else { item.Qty++; UpdateMath(); }
+    }
+
+    private void DecreaseQty(SalesCartItemDto item)
+    {
+        if (item.Qty <= 1) CartItems.Remove(item);
+        else item.Qty--;
+        UpdateMath();
+    }
+
+    private void UpdateCartQty(SalesCartItemDto item, object? val)
+    {
+        if (int.TryParse(val?.ToString(), out int newQty))
+        {
+            if (newQty > item.MaxCookable)
+            {
+                item.Qty = item.MaxCookable;
+                JS.InvokeVoidAsync("alert", $"Maximum available is {item.MaxCookable}.");
+            }
+            else if (newQty < 1) item.Qty = 1;
+            else item.Qty = newQty;
+            
+            UpdateMath();
+        }
+    }
+
+    private void ClearCart()
+    {
+        CartItems.Clear();
+        ActiveDiscount = null;
+        UpdateMath();
+    }
+
+    private void UpdateMath()
+    {
+        if (HasDiscount)
+        {
+            if (ActiveDiscount.ValueType == "Percentage") DiscountAmount = SubTotal * (ActiveDiscount.DiscountValue / 100m);
+            else DiscountAmount = ActiveDiscount.DiscountValue;
+
+            if (DiscountAmount > SubTotal) DiscountAmount = SubTotal;
+        }
+        else DiscountAmount = 0;
+        
+        StateHasChanged();
+    }
+
+    // --- REAL MODAL LOGIC ---
+    
+    private async Task OpenDiscountDialog()
+    {
+        if (CartItems.Count == 0)
+        {
+            await JS.InvokeVoidAsync("alert", "Add items to the cart before applying a discount.");
+            return;
+        }
+
+        // Fetch the fresh list
+        var result = await Http.GetFromJsonAsync<List<DiscountDto>>($"api/sales/discounts/{currentUserRole}");
+        AvailableDiscounts = result ?? new();
+
+        showDiscountModal = true;
+        StateHasChanged(); // Force the UI to see the new list before opening the modal
+    }
+
+    private void ApplyDiscount(DiscountDto d)
+    {
+        ActiveDiscount = d;
+        showDiscountModal = false;
+        UpdateMath();
+    }
+
+    private void RemoveDiscount() { ActiveDiscount = null; UpdateMath(); }
+
+    private void OpenPaymentDialog()
+    {
+        showPaymentModal = true;
+    }
+
+    private async Task HandlePaymentComplete(PaymentGatewayModal.PaymentResult result)
+    {
+        showPaymentModal = false;
+
+        if (!result.IsSuccess) return;
+
+        GeneratedRefNum = result.ReferenceNumber;
+        payMethod = result.PaymentMethod; 
+        IsCooking = true; 
+        StateHasChanged();
+
+        try
+        {
+            var request = new CheckoutRequest
+            {
+                BranchID = currentBranchId,
+                UserID = currentUserId,
+                PaymentMethod = result.PaymentMethod,
+                ReferenceNumber = result.ReferenceNumber,
+                GrandTotal = GrandTotal,
+                DiscountID = ActiveDiscount?.DiscountID,
+                DiscountAmount = DiscountAmount,
+                Cart = CartItems.ToList()
+            };
+
+            var response = await Http.PostAsJsonAsync("api/sales/checkout", request);
+
+            if (response.IsSuccessStatusCode)
+            {
+                await Task.Delay(5500); // Exact WPF animation wait time!
+                IsCooking = false;
+                
+                showReceiptModal = true; 
+                await LoadMenu(); // Reload inventory limits silently in background
+            }
+            else
+            {
+                IsCooking = false;
+                await JS.InvokeVoidAsync("alert", $"Database Sync Failed: {await response.Content.ReadAsStringAsync()}");
+            }
+        }
+        catch (Exception ex)
+        {
+            IsCooking = false;
+            await JS.InvokeVoidAsync("alert", $"Network Error: {ex.Message}");
+        }
+        StateHasChanged();
+    }
+
+    private void CloseReceipt()
+    {
+        showReceiptModal = false;
+        ClearCart(); // Cart clears ONLY after they print the receipt
+    }
+
+    private async Task OpenVoidWindow()
+    {
+        TodaySales = await Http.GetFromJsonAsync<List<TransactionDto>>($"api/sales/today/{currentBranchId}") ?? new();
+        showVoidModal = true;
+    }
+
+    private async Task ProcessVoid(VoidRequestPayload payload)
+    {
+        try
+        {
+            // Using POST to send the complex payload to your backend. 
+            // (Ensure your backend API accepts this model!)
+            var response = await Http.PostAsJsonAsync("api/sales/void", payload);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                await JS.InvokeVoidAsync("alert", "Transaction successfully voided. Inventory and financial ledgers have been updated.");
+                TodaySales = await Http.GetFromJsonAsync<List<TransactionDto>>($"api/sales/today/{currentBranchId}") ?? new();
+                await LoadMenu(); // Refresh menu to show restored inventory
+                StateHasChanged();
+            }
+            else
+            {
+                await JS.InvokeVoidAsync("alert", $"Failed to void transaction: {await response.Content.ReadAsStringAsync()}");
+            }
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Network Error: {ex.Message}");
+        }
+    }
+
+    // --- DTOs ---
+    public class ProductDisplayDto
+    {
+        public int ProductID { get; set; }
+        public string RawName { get; set; } = "";
+        public decimal BasePrice { get; set; }
+        public int MaxCookable { get; set; }
+        public string ImagePath { get; set; } = "";
+        public bool HasImage => !string.IsNullOrEmpty(ImagePath);
+        public bool IsInStock => MaxCookable > 0;
+        public string Category => RawName.Contains("|") ? RawName.Split('|')[0].Trim() : "Others";
+        
+        public string DisplayName
+        {
+            get
+            {
+                string namePart = RawName.Contains("|") ? RawName.Split('|')[1].Trim() : RawName;
+                return namePart.Contains("(") ? namePart.Substring(0, namePart.IndexOf("(")).Trim() : namePart;
+            }
+        }
+        
+        public string SizeText
+        {
+            get
+            {
+                if (RawName.Contains("(") && RawName.Contains(")"))
+                {
+                    int start = RawName.IndexOf("(") + 1;
+                    int length = RawName.IndexOf(")") - start;
+                    return RawName.Substring(start, length).Trim();
+                }
+                return "";
+            }
+        }
+        public bool HasSize => !string.IsNullOrEmpty(SizeText);
+        public string FormattedPrice => $"₱{BasePrice:N0}";
+    }
+
+    public class SalesCartItemDto
+    {
+        public int ProductID { get; set; }
+        public string RawName { get; set; } = "";
+        public int Qty { get; set; }
+        public decimal BasePrice { get; set; }
+        public int MaxCookable { get; set; }
+        public string DisplayName => RawName.Contains("|") ? RawName.Split('|')[1].Trim() : RawName;
+        public decimal TotalPrice => BasePrice * Qty;
+    }
+
+    public class CheckoutRequest
+    {
+        public int BranchID { get; set; }
+        public int UserID { get; set; }
+        public string PaymentMethod { get; set; } = "";
+        public string ReferenceNumber { get; set; } = "";
+        public decimal GrandTotal { get; set; }
+        public int? DiscountID { get; set; }
+        public decimal DiscountAmount { get; set; }
+        public List<SalesCartItemDto> Cart { get; set; } = new();
+    }
+
+    public class DiscountDto
+    {
+        public int DiscountID { get; set; }
+        public string DiscountName { get; set; } = "";
+        public string ValueType { get; set; } = ""; 
+        public decimal DiscountValue { get; set; }
+        
+        // Added these to support your awesome ApplyDiscountModal!
+        public string DiscountType { get; set; } = "";
+        public string ReferenceID { get; set; } = "";
+        public string Reason { get; set; } = "";
+    }
+
+    public class TransactionDto
+    {
+        public string ReferenceNumber { get; set; } = string.Empty;
+        
+        // Catch all possible date column names
+        public System.DateTime? LocalTransactionDate { get; set; }
+        public System.DateTime? TransactionDate { get; set; }
+        
+        // Catch all possible product names
+        public string ProductName { get; set; } = string.Empty;
+        public string ItemName { get; set; } = string.Empty;
+
+        // Catch all possible quantity names
+        public int? QuantitySold { get; set; }
+        public int? Qty { get; set; }
+
+        // Catch all possible amount names
+        public decimal? TotalAmount { get; set; }
+        public decimal? GrandTotal { get; set; }
+
+        // Catch all possible method names
+        public string PaymentMethod { get; set; } = string.Empty;
+        public string Method { get; set; } = string.Empty;
+
+        public string Status { get; set; } = string.Empty;
+
+        // --- COMPUTED PROPERTIES FOR THE UI ---
+        // These automatically grab whichever value successfully loaded from the database!
+        public System.DateTime DisplayDate => LocalTransactionDate ?? TransactionDate ?? System.DateTime.Now;
+        public decimal DisplayAmount => TotalAmount ?? GrandTotal ?? 0m;
+        public int DisplayQty => QuantitySold ?? Qty ?? 0;
+        public string DisplayProduct => !string.IsNullOrEmpty(ProductName) ? ProductName : (!string.IsNullOrEmpty(ItemName) ? ItemName : "Order Item(s)");
+        public string DisplayMethod => !string.IsNullOrEmpty(PaymentMethod) ? PaymentMethod : (!string.IsNullOrEmpty(Method) ? Method : "Cash");
+    }
+
+    // Added to package the void data cleanly
+    public class VoidRequestPayload
+    {
+        public string ReferenceNumber { get; set; } = "";
+        public string Reason { get; set; } = "";
+        public int ManagerID { get; set; }
+    }
+}

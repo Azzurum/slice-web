@@ -1,0 +1,138 @@
+﻿@inject IJSRuntime JS
+
+@if (IsVisible)
+{
+    <div class="modal-overlay" @onclick="Cancel">
+        <div class="z-window shadow-hard" @onclick:stopPropagation="true">
+            
+            <div class="z-content">
+                
+                @* HEADER *@
+                <i class="fa fa-lock icon-lock"></i>
+                <div class="z-title">END OF SHIFT</div>
+                <div class="z-subtitle">Cash Drawer Reconciliation</div>
+
+                @* EXPECTED CASH CARD *@
+                <div class="expected-card">
+                    <div class="expected-lbl">
+                        <i class="fa fa-info-circle me-1"></i> SYSTEM EXPECTED CASH
+                    </div>
+                    <div class="expected-val">₱@ExpectedCash.ToString("N2")</div>
+                </div>
+
+                @* ACTUAL CASH INPUT *@
+                <div class="input-lbl">Enter Physical Cash in Drawer:</div>
+                <div class="input-box">
+                    <span class="currency-symbol">₱</span>
+                    <input type="number" class="cash-input" @bind="ActualCash" @bind:event="oninput" min="0" step="any" />
+                </div>
+
+                @* ACTIONS *@
+                <button class="btn-submit-z" @onclick="Submit">SUBMIT &amp; LOGOUT</button>
+                <button class="btn-cancel-z" @onclick="Cancel">Cancel / Return to POS</button>
+
+            </div>
+
+        </div>
+    </div>
+}
+
+<style>
+    .modal-overlay {
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0, 0, 0, 0.56); /* #90000000 */
+        z-index: 10000; display: flex; justify-content: center; align-items: center;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    .z-window {
+        width: 400px; height: 500px;
+        background: #1E2B3C; /* Exact WPF Background */
+        display: flex; flex-direction: column;
+        /* Slight rounding for web, even though WPF ToolWindow is square */
+        border-radius: 8px; 
+    }
+    
+    .shadow-hard { box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4); }
+
+    .z-content {
+        padding: 30px; display: flex; flex-direction: column;
+        justify-content: center; height: 100%;
+    }
+
+    /* HEADER */
+    .icon-lock { color: #BDC3C7; font-size: 35px; text-align: center; margin-bottom: 10px; }
+    .z-title { color: white; font-size: 26px; font-weight: 900; text-align: center; line-height: 1.2; }
+    .z-subtitle { color: #95A5A6; font-size: 13px; text-align: center; margin-bottom: 25px; }
+
+    /* EXPECTED CARD */
+    .expected-card {
+        background: white; border-radius: 12px; padding: 20px;
+        margin-bottom: 25px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+    }
+    .expected-lbl {
+        color: #7F8C8D; font-size: 11px; font-weight: bold;
+        display: flex; align-items: center; justify-content: center; margin-bottom: 5px;
+    }
+    .expected-val { color: #27AE60; font-size: 34px; font-weight: 900; text-align: center; line-height: 1; }
+
+    /* INPUT AREA */
+    .input-lbl { color: #BDC3C7; font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+    .input-box {
+        background: #2C3E50; border-radius: 8px; height: 60px;
+        display: flex; align-items: center;
+        box-shadow: 0 1px 5px rgba(0, 0, 0, 0.2);
+    }
+    .currency-symbol { color: #7F8C8D; font-size: 24px; font-weight: 900; margin-left: 20px; margin-right: 5px; }
+    .cash-input {
+        background: transparent; border: none; color: white;
+        font-size: 28px; font-weight: bold; width: 100%;
+        outline: none; padding-right: 20px;
+    }
+    /* Hide number arrows in webkit */
+    .cash-input::-webkit-outer-spin-button, .cash-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+    /* BUTTONS */
+    .btn-submit-z {
+        background: #E74C3C; color: white; border: none; border-radius: 8px;
+        height: 50px; font-weight: bold; font-size: 14px;
+        cursor: pointer; margin-top: 35px; margin-bottom: 10px; transition: 0.2s; outline: none;
+    }
+    .btn-submit-z:hover { opacity: 0.85; }
+    .btn-submit-z:active { opacity: 0.7; }
+
+    .btn-cancel-z {
+        background: transparent; border: none; color: #7F8C8D;
+        font-size: 12px; cursor: pointer; text-align: center; transition: 0.2s; outline: none;
+    }
+    .btn-cancel-z:hover { color: white; text-decoration: underline; }
+</style>
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public EventCallback<bool> IsVisibleChanged { get; set; }
+    [Parameter] public decimal ExpectedCash { get; set; }
+    [Parameter] public EventCallback<decimal> OnSubmitLogout { get; set; }
+
+    private decimal? ActualCash;
+
+    private async Task Cancel()
+    {
+        IsVisible = false;
+        ActualCash = null; // reset
+        await IsVisibleChanged.InvokeAsync(IsVisible);
+    }
+
+    private async Task Submit()
+    {
+        if (ActualCash == null || ActualCash < 0)
+        {
+            await JS.InvokeVoidAsync("alert", "Please enter a valid physical cash amount.");
+            return;
+        }
+
+        // Trigger the logout logic in the parent
+        await OnSubmitLogout.InvokeAsync(ActualCash.Value);
+    }
+}

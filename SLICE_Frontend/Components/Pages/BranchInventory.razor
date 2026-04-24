@@ -1,0 +1,319 @@
+﻿@page "/my-inventory"
+@using Microsoft.AspNetCore.Components.Authorization
+@inject HttpClient Http
+@inject IJSRuntime JS
+
+<PageTitle>My Inventory | S.L.I.C.E.</PageTitle>
+
+<div class="system-background">
+
+    @* MAIN GRID (Margin="20") *@
+    <div class="main-grid">
+
+        @* ROW 0: HEADER (Margin="0,0,0,20") *@
+        <div class="header-stack">
+            <div class="title-row">
+                <i class="fa fa-archive title-icon"></i>
+                <div class="main-title">Inventory Management</div>
+            </div>
+            <div class="sub-title">Real-time monitoring of local branch assets and thresholds.</div>
+        </div>
+
+        @* ROW 1: MAIN CARD *@
+        <div class="card-style shadow-custom d-flex flex-column flex-grow-1 overflow-hidden">
+            
+            @* CONTROL GRID (Margin="15") *@
+            <div class="control-grid">
+                
+                @* LEFT: LEGEND *@
+                <div class="legend-stack">
+                    <div class="legend-pill bg-critical">
+                        <span style="margin: 0 5px 0 0;">⚠️</span>
+                        <span class="lbl-critical">Critical Low</span>
+                    </div>
+                    <div class="legend-pill bg-healthy">
+                        <span style="margin: 0 5px 0 0;">✅</span>
+                        <span class="lbl-healthy">Healthy Level</span>
+                    </div>
+                </div>
+
+                @* RIGHT: SEARCH & REFRESH *@
+                <div class="search-refresh-stack">
+                    <div class="search-border">
+                        <span class="search-icon">🔍</span>
+                        <input type="text" class="search-input" placeholder="Search items or categories..." 
+                               @bind="SearchText" @bind:event="oninput" />
+                    </div>
+                    <button class="btn-refresh" @onclick="LoadData">Refresh Data</button>
+                </div>
+
+            </div>
+
+            @* DATAGRID (RowHeight="45") *@
+            <div class="table-scroll-viewer flex-grow-1">
+                @if (isLoading)
+                {
+                    <div class="loading-state"><i class="fa fa-spinner fa-spin"></i></div>
+                }
+                else
+                {
+                    <table class="custom-datagrid">
+                        <thead>
+                            <tr>
+                                @* Column Ratios: 2*, 1.5*, 1.2*, 0.8*, 1*, 1.2* (Total ~7.7*) *@
+                                <th style="width: 26%;">Item Name</th>
+                                <th style="width: 19.5%;">Category</th>
+                                <th style="width: 15.5%; text-align: right; padding-right: 30px;">Available Qty</th>
+                                <th style="width: 10.5%;">Unit</th>
+                                <th style="width: 13%; text-align: right; padding-right: 30px;">Min. Limit</th>
+                                <th style="width: 15.5%;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in filteredStock)
+                            {
+                                @* DataTrigger Binding="{Binding IsLowStock}" Value="True" *@
+                                <tr class="@(item.IsLowStock ? "row-critical" : "")" 
+                                    title="@(item.IsLowStock ? "ACTION REQUIRED: Stock is below safety threshold!" : "")">
+                                    
+                                    <td class="col-name">@item.ItemName</td>
+                                    <td class="col-cat">@item.Category</td>
+                                    <td class="col-qty">@item.CurrentQuantity.ToString("N2")</td>
+                                    <td class="col-unit">@item.BaseUnit</td>
+                                    
+                                    @* EDITABLE MIN LIMIT *@
+                                    <td class="col-limit">
+                                        <input type="number" step="any" class="inline-edit-input" 
+                                               value="@item.LowStockThreshold" 
+                                               @onchange="@((e) => UpdateThreshold(item, e.Value?.ToString()))"
+                                               title="Double-click to edit this threshold!" />
+                                    </td>
+
+                                    <td class="col-status">@item.StockStatus</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<style>
+    /* SYSTEM BACKGROUND (Background="Transparent" mapped to standard container) */
+    .system-background {
+        background-color: transparent;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        height: calc(100vh - 60px);
+        overflow: hidden;
+    }
+
+    /* MAIN GRID (Margin="20") */
+    .main-grid {
+        margin: 20px;
+        display: flex;
+        flex-direction: column;
+        height: calc(100% - 40px);
+    }
+
+    /* HEADER (Margin="0,0,0,20") */
+    .header-stack { display: flex; flex-direction: column; margin: 0 0 20px 0; }
+    .title-row { display: flex; align-items: center; margin: 0 0 5px 0; }
+    .title-icon { color: #2C3E50; font-size: 24px; margin: 0 10px 0 0; }
+    .main-title { font-size: 24px; font-weight: 700; color: #2C3E50; } /* FontWeight="Bold" */
+    .sub-title { font-size: 14px; font-weight: 400; color: #7F8C8D; margin: 5px 0 0 34px; }
+
+    /* MAIN CARD */
+    /* Background="White" CornerRadius="8" BorderBrush="#E0E0E0" BorderThickness="1" */
+    .card-style {
+        background-color: white; border-radius: 8px; border: 1px solid #E0E0E0;
+    }
+    /* DropShadowEffect BlurRadius="10" Color="#BDC3C7" ShadowDepth="2" Opacity="0.3" */
+    .shadow-custom { box-shadow: 0 2px 10px rgba(189, 195, 199, 0.3); }
+
+    /* CONTROL GRID (Margin="15") */
+    .control-grid { display: flex; justify-content: space-between; align-items: center; padding: 15px; }
+
+    /* LEGEND STACK */
+    .legend-stack { display: flex; align-items: center; }
+    .legend-pill { border-radius: 4px; padding: 4px 8px; display: flex; align-items: center; }
+    .bg-critical { background-color: #FFEBEE; margin: 0 10px 0 0; }
+    .lbl-critical { color: #C0392B; font-weight: 700; font-size: 11px; } /* FontWeight="Bold" */
+    .bg-healthy { background-color: #E8F8F5; }
+    .lbl-healthy { color: #27AE60; font-weight: 700; font-size: 11px; } /* FontWeight="Bold" */
+
+    /* SEARCH & REFRESH */
+    .search-refresh-stack { display: flex; align-items: center; }
+    
+    /* Background="#F4F6F7" CornerRadius="6" Padding="8,6" Margin="0,0,15,0" Width="250" */
+    .search-border {
+        background-color: #F4F6F7; border-radius: 6px; padding: 6px 8px; margin: 0 15px 0 0;
+        width: 250px; display: flex; align-items: center;
+    }
+    .search-icon { color: #7F8C8D; margin: 0 8px 0 0; font-size: 12px; }
+    .search-input { border: none; background: transparent; outline: none; width: 100%; color: #2C3E50; font-family: 'Segoe UI'; font-size: 13px; }
+    .search-input::placeholder { color: #BDC3C7; }
+
+    /* Foreground="#3498DB" FontWeight="SemiBold" */
+    .btn-refresh { background: transparent; border: none; color: #3498DB; font-weight: 600; cursor: pointer; padding: 0; }
+    .btn-refresh:hover { text-decoration: underline; }
+
+    /* DATAGRID (RowHeight="45", GridLinesVisibility="Horizontal") */
+    .table-scroll-viewer { overflow-y: auto; }
+    .custom-datagrid { width: 100%; border-collapse: collapse; text-align: left; }
+    
+    /* HeaderStyle: Background="#F8F9FA", Foreground="#7F8C8D", FontWeight="Bold", Padding="10", BorderThickness="0,0,0,1", BorderBrush="#E0E0E0" */
+    .custom-datagrid th {
+        background-color: #F8F9FA; color: #7F8C8D; font-weight: 700; padding: 10px;
+        border-bottom: 1px solid #E0E0E0; position: sticky; top: 0; z-index: 1;
+    }
+
+    .custom-datagrid tr { height: 45px; border-bottom: 1px solid #F0F0F0; transition: background 0.1s; cursor: pointer; }
+    
+    /* Hover Trigger: Background="#F4F6F7" */
+    .custom-datagrid tbody tr:hover:not(.row-critical) { background-color: #F4F6F7; }
+    
+    /* Selection Trigger: Background="#F0F8FF", Foreground="#2C3E50" */
+    .custom-datagrid tbody tr:active { background-color: #F0F8FF; color: #2C3E50; }
+
+    /* Critical Trigger: Background="#FFEBEE", Foreground="#C0392B" */
+    .row-critical { background-color: #FFEBEE !important; }
+    .row-critical td { color: #C0392B !important; }
+    .row-critical .col-limit input { color: #C0392B !important; } /* Override input color when critical */
+
+    /* CELL STYLES */
+    .custom-datagrid td { padding: 0 10px; vertical-align: middle; }
+
+    /* Item Name (FontWeight="SemiBold", Margin="10,0") */
+    .col-name { font-weight: 600; padding-left: 20px !important; color: #2C3E50; }
+    
+    /* Category */
+    .col-cat { padding-left: 20px !important; color: #2C3E50; }
+    
+    /* Available Qty (HorizontalAlignment="Right", Margin="0,0,20,0", FontWeight="Bold") */
+    .col-qty { text-align: right; padding-right: 30px !important; font-weight: 700; color: #2C3E50; }
+    
+    /* Unit (Foreground="Gray") */
+    .col-unit { color: gray; padding-left: 20px !important; }
+    
+    /* Min. Limit (Foreground="#2980B9", FontWeight="Bold", HorizontalAlignment="Right") */
+    .col-limit { text-align: right; padding-right: 20px !important; }
+    
+    /* Status (FontWeight="Bold") */
+    .col-status { font-weight: 700; padding-left: 20px !important; color: #2C3E50; }
+
+    /* INLINE EDIT INPUT */
+    .inline-edit-input {
+        width: 80px; background: transparent; border: 1px solid transparent; border-radius: 4px;
+        text-align: right; color: #2980B9; font-weight: 700; font-family: 'Segoe UI'; font-size: 13px; padding: 2px 5px;
+    }
+    .inline-edit-input:hover { border-color: #BDC3C7; background-color: white; }
+    .inline-edit-input:focus { border-color: #3498DB; background-color: white; outline: none; }
+
+    .loading-state { text-align: center; margin-top: 50px; color: #7F8C8D; font-size: 24px; }
+</style>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
+
+    private List<StockItemVM> allStock = new();
+    private List<StockItemVM> filteredStock = new();
+    private int currentBranchId;
+    private bool isLoading = true;
+
+    private string _searchText = "";
+    public string SearchText 
+    { 
+        get => _searchText; 
+        set { _searchText = value; FilterStock(); } 
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthStateTask;
+        var branchClaim = authState.User.FindFirst("BranchID")?.Value;
+        if (int.TryParse(branchClaim, out int bid)) currentBranchId = bid;
+
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        try
+        {
+            var result = await Http.GetFromJsonAsync<List<StockItemVM>>($"api/inventory/branch/{currentBranchId}");
+            if (result != null)
+            {
+                allStock = result;
+                FilterStock();
+            }
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Error: {ex.Message}");
+        }
+        isLoading = false;
+        StateHasChanged();
+    }
+
+    private void FilterStock()
+    {
+        if (string.IsNullOrWhiteSpace(SearchText))
+        {
+            filteredStock = allStock.ToList();
+        }
+        else
+        {
+            string lowerSearch = SearchText.ToLower();
+            filteredStock = allStock.Where(i => 
+                (i.ItemName != null && i.ItemName.ToLower().Contains(lowerSearch)) || 
+                (i.Category != null && i.Category.ToLower().Contains(lowerSearch))
+            ).ToList();
+        }
+    }
+
+    private async Task UpdateThreshold(StockItemVM item, string? newValue)
+    {
+        if (decimal.TryParse(newValue, System.Globalization.NumberStyles.Any, null, out decimal newLimit))
+        {
+            try
+            {
+                var response = await Http.PutAsJsonAsync($"api/inventory/threshold/{item.StockID}", new { NewThreshold = newLimit });
+                if (response.IsSuccessStatusCode)
+                {
+                    item.LowStockThreshold = newLimit;
+                    StateHasChanged(); // Background UI refresh equivalent
+                }
+                else
+                {
+                    await JS.InvokeVoidAsync("alert", "Failed to update threshold.");
+                }
+            }
+            catch (Exception ex)
+            {
+                await JS.InvokeVoidAsync("alert", $"Database Error: {ex.Message}");
+            }
+        }
+        else
+        {
+            await JS.InvokeVoidAsync("alert", "Please enter a valid number.");
+        }
+    }
+
+    public class StockItemVM
+    {
+        public int StockID { get; set; }
+        public string ItemName { get; set; } = string.Empty;
+        public string Category { get; set; } = string.Empty;
+        public decimal CurrentQuantity { get; set; }
+        public decimal LowStockThreshold { get; set; }
+        public string BaseUnit { get; set; } = string.Empty;
+
+        public bool IsLowStock => CurrentQuantity <= LowStockThreshold;
+        public string StockStatus => IsLowStock ? "Critical Low" : "Healthy";
+    }
+}

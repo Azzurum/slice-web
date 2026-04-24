@@ -1,0 +1,161 @@
+﻿@inject HttpClient Http
+@inject IJSRuntime JS
+
+@if (IsVisible)
+{
+    <div class="modal-overlay" @onclick="Cancel">
+        <div class="approval-window shadow-hard" @onclick:stopPropagation="true">
+            
+            <div class="approval-content">
+                
+                @* HEADER *@
+                <div class="text-center mb-4">
+                    <div class="icon-circle mx-auto mb-3">
+                        <i class="fa fa-lock"></i>
+                    </div>
+                    <div class="approval-title">MANAGER OVERRIDE</div>
+                    <div class="approval-sub">Requires Manager/Admin credentials.</div>
+                </div>
+
+                @* USERNAME *@
+                <div class="mb-4">
+                    <div class="input-lbl">USERNAME</div>
+                    <div class="input-box">
+                        <div class="icon-col"><i class="fa fa-user"></i></div>
+                        <input type="text" class="auth-input" @bind="Username" @bind:event="oninput" autofocus />
+                    </div>
+                </div>
+
+                @* PASSWORD *@
+                <div class="mb-4">
+                    <div class="input-lbl">PASSWORD</div>
+                    <div class="input-box">
+                        <div class="icon-col"><i class="fa fa-key"></i></div>
+                        <input type="password" class="auth-input" @bind="Password" @bind:event="oninput" @onkeypress="HandleKeyPress" />
+                    </div>
+                </div>
+
+                @* ACTIONS *@
+                <div class="mt-auto d-flex flex-column">
+                    <button class="btn-authorize mb-3" @onclick="Authorize">AUTHORIZE OVERRIDE</button>
+                    <button class="btn-cancel-auth" @onclick="Cancel">Cancel / Go Back</button>
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+}
+
+<style>
+    .modal-overlay {
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0, 0, 0, 0.65);
+        z-index: 10500; display: flex; justify-content: center; align-items: center;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    /* SCALED UP TO 500x560 FOR MAXIMUM VISIBILITY */
+    .approval-window {
+        width: 500px; height: 560px; background: white; border-radius: 16px;
+        display: flex; flex-direction: column; overflow: hidden;
+    }
+    .shadow-hard { box-shadow: 0 15px 50px rgba(0, 0, 0, 0.4); }
+
+    .approval-content { padding: 40px 50px; display: flex; flex-direction: column; height: 100%; }
+
+    /* HEADER */
+    .icon-circle {
+        background: #FDEDEC; width: 80px; height: 80px; border-radius: 40px;
+        display: flex; justify-content: center; align-items: center;
+    }
+    .icon-circle i { color: #E74C3C; font-size: 36px; }
+    .approval-title { font-size: 28px; font-weight: 900; color: #2C3E50; line-height: 1.2; margin-bottom: 5px; }
+    .approval-sub { font-size: 15px; color: #95A5A6; }
+
+    /* INPUTS */
+    .input-lbl { font-size: 13px; font-weight: bold; color: #7F8C8D; margin-bottom: 8px; letter-spacing: 0.5px; }
+    
+    /* Fixed box height so inputs never collapse */
+    .input-box {
+        background: #F8F9FA; border: 2px solid #EAECEE; border-radius: 10px;
+        height: 60px; display: flex; align-items: center; overflow: hidden;
+    }
+    .input-box:focus-within { border-color: #E67E22; background: #FFF; }
+    
+    .icon-col { width: 60px; display: flex; justify-content: center; color: #BDC3C7; font-size: 20px; }
+    
+    /* TEXT TYPING FIX: Forced 100% height, explicit distinct orange color, larger font */
+    .auth-input {
+        width: 100%; height: 100%; border: none; background: transparent;
+        font-size: 22px; font-weight: 800; color: #D35400 !important; /* Bold distinct orange */
+        outline: none; padding-right: 20px; letter-spacing: 1px;
+    }
+    /* Change placeholder color so they know they can type */
+    .auth-input::placeholder { color: #BDC3C7; font-weight: normal; }
+
+    /* BUTTONS */
+    .btn-authorize {
+        background: #E74C3C; color: white; font-weight: 900; font-size: 16px;
+        border: none; border-radius: 10px; height: 60px; width: 100%;
+        cursor: pointer; transition: 0.2s; outline: none; letter-spacing: 1px;
+        box-shadow: 0 5px 15px rgba(231, 76, 60, 0.35);
+    }
+    .btn-authorize:hover { opacity: 0.9; transform: translateY(-2px); }
+    .btn-authorize:active { opacity: 0.7; transform: translateY(0); }
+
+    .btn-cancel-auth {
+        background: transparent; border: none; color: #95A5A6; font-size: 14px; font-weight: bold;
+        cursor: pointer; transition: 0.2s; outline: none; text-align: center; padding: 10px;
+    }
+    .btn-cancel-auth:hover { color: #2C3E50; text-decoration: underline; }
+</style>
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public EventCallback<bool> IsVisibleChanged { get; set; }
+    [Parameter] public EventCallback<int> OnAuthorized { get; set; }
+
+    private string Username = "";
+    private string Password = "";
+
+    private async Task Cancel()
+    {
+        IsVisible = false;
+        Username = "";
+        Password = "";
+        await IsVisibleChanged.InvokeAsync(IsVisible);
+    }
+
+    private async Task HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await Authorize();
+        }
+    }
+
+    private async Task Authorize()
+    {
+        try
+        {
+            var response = await Http.PostAsJsonAsync("api/auth/override", new { Username, Password });
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var managerId = await response.Content.ReadFromJsonAsync<int>();
+                await OnAuthorized.InvokeAsync(managerId);
+                await Cancel();
+            }
+            else
+            {
+                await JS.InvokeVoidAsync("alert", "Invalid credentials or insufficient permissions.");
+                Password = ""; // Clear password for quick retry
+            }
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Auth Error: {ex.Message}");
+        }
+    }
+}

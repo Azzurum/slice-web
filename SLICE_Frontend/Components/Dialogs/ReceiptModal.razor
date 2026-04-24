@@ -1,0 +1,192 @@
+﻿@using SLICE_Frontend.Components.Pages
+@inject IJSRuntime JS
+
+@if (IsVisible)
+{
+    <div class="modal-overlay" @onclick="Close">
+        <div class="receipt-window" @onclick:stopPropagation="true">
+            
+            @* SCROLLABLE RECEIPT AREA *@
+            <div class="receipt-scroll">
+                
+                @* THE ACTUAL PRINTABLE RECEIPT PAPER *@
+                <div id="PrintableReceipt" class="receipt-paper">
+                    
+                    <div class="text-center">
+                        <div class="receipt-title">S.L.I.C.E. ENTERPRISE</div>
+                        <div class="fw-bold mt-1">@BranchName</div>
+                        <div class="text-muted wrap-text mx-auto" style="max-width: 250px;">@BranchAddress</div>
+                        <div class="text-muted" style="font-size: 11px;">Contact: @Contact</div>
+                        <div style="font-size: 10px; margin-top: 5px;">VAT REG TIN: 123-456-789-000</div>
+                    </div>
+
+                    <div class="dashed-line">--------------------------------</div>
+
+                    <div class="d-flex justify-content-between" style="font-size: 12px;">
+                        <div>
+                            <div>Date: @DateTime.Now.ToString("MM/dd/yyyy hh:mm tt")</div>
+                            <div>Cashier: @CashierName</div>
+                        </div>
+                        <div class="text-end">
+                            <div>Ref: @ReferenceNumber</div>
+                        </div>
+                    </div>
+
+                    <div class="dashed-line">--------------------------------</div>
+
+                    @* HEADER ROW *@
+                    <div class="d-flex fw-bold mb-2">
+                        <div style="width: 40px;">QTY</div>
+                        <div class="flex-grow-1">ITEM</div>
+                        <div>AMOUNT</div>
+                    </div>
+
+                    @* ITEMS *@
+                    @foreach (var item in CartItems)
+                    {
+                        <div class="d-flex mb-1">
+                            <div style="width: 40px;">@item.Qty</div>
+                            <div class="flex-grow-1 pe-2 wrap-text">@item.DisplayName</div>
+                            <div>@item.TotalPrice.ToString("C2")</div>
+                        </div>
+                    }
+
+                    <div class="dashed-line">--------------------------------</div>
+
+                    @* TOTALS *@
+                    <div class="d-flex justify-content-between mb-1">
+                        <div>SUBTOTAL:</div>
+                        <div>@SubTotal.ToString("C2")</div>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2">
+                        <div>DISCOUNT:</div>
+                        <div>-@DiscountAmount.ToString("C2")</div>
+                    </div>
+                    <div class="d-flex justify-content-between mb-2 fw-bold" style="font-size: 16px;">
+                        <div>GRAND TOTAL:</div>
+                        <div>@GrandTotal.ToString("C2")</div>
+                    </div>
+
+                    <div class="dashed-line">--------------------------------</div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <div>PAYMENT METHOD:</div>
+                        <div>@PaymentMethod</div>
+                    </div>
+
+                    <div class="dashed-line">--------------------------------</div>
+
+                    <div class="text-center mt-4">
+                        <div class="fw-bold">THANK YOU FOR YOUR BUSINESS!</div>
+                        <div style="font-size: 10px; margin-top: 5px;">Please keep this receipt for</div>
+                        <div style="font-size: 10px;">returns and exchanges.</div>
+                    </div>
+
+                </div>
+            </div>
+
+            @* ACTION BUTTONS *@
+            <div class="action-grid">
+                <button class="btn-print" @onclick="PrintReceipt">PRINT RECEIPT</button>
+                <button class="btn-close-receipt" @onclick="Close">CLOSE</button>
+            </div>
+
+        </div>
+    </div>
+}
+
+<style>
+    /* MODAL CONTAINER */
+    .modal-overlay {
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0, 0, 0, 0.5); z-index: 10000;
+        display: flex; justify-content: center; align-items: center;
+    }
+
+    /* MATCHES WPF: Height="650" Width="450" Background="#ECF0F1" */
+    .receipt-window {
+        width: 450px; height: 650px;
+        background: #ECF0F1; border-radius: 8px;
+        display: flex; flex-direction: column; padding: 20px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    }
+
+    .receipt-scroll { flex-grow: 1; overflow-y: auto; display: flex; justify-content: center; margin-bottom: 20px; }
+    .receipt-scroll::-webkit-scrollbar { display: none; }
+
+    /* MATCHES WPF: Consolas Font, 350px width, padding 20 */
+    .receipt-paper {
+        background: white; width: 350px; padding: 20px;
+        font-family: 'Consolas', 'Courier New', monospace; /* Exact Receipt Font */
+        color: black;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        height: fit-content;
+    }
+
+    .receipt-title { font-size: 20px; font-weight: bold; }
+    .wrap-text { word-wrap: break-word; white-space: pre-wrap; }
+    .dashed-line { text-align: center; margin: 10px 0; letter-spacing: 1px; overflow: hidden; white-space: nowrap; }
+
+    /* ACTION BUTTONS */
+    .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    
+    .btn-print {
+        background: #2C3E50; color: white; font-weight: bold; height: 45px;
+        border: none; border-radius: 4px; cursor: pointer; transition: 0.2s; outline: none;
+    }
+    .btn-print:hover { opacity: 0.9; }
+
+    .btn-close-receipt {
+        background: #95A5A6; color: white; font-weight: bold; height: 45px;
+        border: none; border-radius: 4px; cursor: pointer; transition: 0.2s; outline: none;
+    }
+    .btn-close-receipt:hover { opacity: 0.9; }
+
+    /* ========================================== */
+    /* CSS PRINT LOGIC - TURNS THIS INTO A REAL POS PRINTER */
+    /* ========================================== */
+    @@media print {
+        body * { visibility: hidden; } /* Hide the whole website */
+        #PrintableReceipt, #PrintableReceipt * { visibility: visible; } /* Show ONLY the receipt paper */
+        #PrintableReceipt { 
+            position: absolute; 
+            left: 0; top: 0; 
+            width: 80mm; /* Standard thermal printer width */
+            box-shadow: none; 
+            margin: 0; padding: 0;
+        }
+    }
+</style>
+
+@code {
+    [Parameter] public bool IsVisible { get; set; }
+    [Parameter] public EventCallback<bool> IsVisibleChanged { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    // Receipt Data
+    [Parameter] public List<POS.SalesCartItemDto> CartItems { get; set; } = new();
+    [Parameter] public decimal SubTotal { get; set; }
+    [Parameter] public decimal DiscountAmount { get; set; }
+    [Parameter] public decimal GrandTotal { get; set; }
+    [Parameter] public string PaymentMethod { get; set; } = "";
+    [Parameter] public string ReferenceNumber { get; set; } = "";
+    
+    // Config Data
+    [Parameter] public string BranchName { get; set; } = "Main Branch";
+    [Parameter] public string BranchAddress { get; set; } = "123 Business Road";
+    [Parameter] public string Contact { get; set; } = "000-0000";
+    [Parameter] public string CashierName { get; set; } = "Store Staff";
+
+    private async Task PrintReceipt()
+    {
+        // Triggers the browser's native print dialog
+        await JS.InvokeVoidAsync("window.print");
+    }
+
+    private async Task Close()
+    {
+        IsVisible = false;
+        await IsVisibleChanged.InvokeAsync(IsVisible);
+        await OnClose.InvokeAsync();
+    }
+}

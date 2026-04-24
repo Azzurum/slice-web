@@ -2,7 +2,7 @@
 using System.Runtime.CompilerServices;
 using System.Collections.ObjectModel;
 
-namespace SLICE_Website.Models
+namespace SLICE_Website .Models
 {
     public class MenuItem : INotifyPropertyChanged
     {
@@ -11,7 +11,8 @@ namespace SLICE_Website.Models
         private bool _isAvailable;
         private string _imagePath;
 
-        public int ProductID { get; set; }
+        public int ProductID { get; set; } 
+
 
         public ObservableCollection<RecipeItemVM> Recipe { get; set; } = new ObservableCollection<RecipeItemVM>();
 

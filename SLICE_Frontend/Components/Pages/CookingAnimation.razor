@@ -1,0 +1,113 @@
+﻿@if (IsCooking)
+{
+    <div class="animation-overlay">
+        <div class="cooking-stage">
+            <div class="action-stage">
+                
+                <div class="oven-bg">
+                    <div class="fire-group">
+                        <div class="fire-glow"></div>
+                        <div class="fire-pit">
+                            <svg class="flame f1" viewBox="0 0 70 110" preserveAspectRatio="none"><path d="M 20,100 Q 0,60 15,30 Q 25,0 45,30 Q 60,60 50,100 Z" fill="#D32F2F" filter="url(#b1)"/></svg>
+                            <svg class="flame f2" viewBox="0 0 70 110" preserveAspectRatio="none"><path d="M 20,100 Q 0,60 15,30 Q 25,0 45,30 Q 60,60 50,100 Z" fill="#FFEB3B" filter="url(#b2)"/></svg>
+                            <svg class="flame f3" viewBox="0 0 70 110" preserveAspectRatio="none"><path d="M 20,100 Q 0,60 15,30 Q 25,0 45,30 Q 60,60 50,100 Z" fill="#FF5722" filter="url(#b3)"/></svg>
+                            <svg width="0" height="0">
+                                <filter id="b1"><feGaussianBlur stdDeviation="5"/></filter>
+                                <filter id="b2"><feGaussianBlur stdDeviation="2.5"/></filter>
+                                <filter id="b3"><feGaussianBlur stdDeviation="7.5"/></filter>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+
+                <svg class="oven-floor" width="800" height="500" viewBox="0 0 800 500">
+                    <path d="M 100,450 L 700,450 L 750,500 L 50,500 Z" fill="#5D4037"/>
+                </svg>
+
+                <div class="pizza-canvas">
+                    <div class="peel-group">
+                        <div class="peel-handle"></div>
+                        <svg class="peel-head" width="240" height="60" viewBox="-20 0 240 60">
+                            <path d="M0,5 L200,5 L220,60 L-20,60 Z" fill="#A1887F"/>
+                        </svg>
+                    </div>
+
+                    <div class="pizza-group shadow-pizza">
+                        <div class="pizza-crust-bottom"></div>
+                        <div class="pizza-crust"></div>
+                        <div class="pizza-cheese-base"></div>
+                        <div class="pizza-cheese-top"></div>
+                        <div class="pizza-toppings">
+                            <div class="pep" style="left:60px; top:50px;"></div>
+                            <div class="pep" style="left:120px; top:70px;"></div>
+                            <div class="pep" style="left:90px; top:120px;"></div>
+                            <div class="pep" style="left:40px; top:100px;"></div>
+                            <div class="pep" style="left:130px; top:130px;"></div>
+                            <svg style="position:absolute; left:80px; top:80px; width:20px; height:10px; overflow:visible;"><path d="M0,10 Q10,0 20,10" stroke="#27AE60" stroke-width="3" fill="none"/></svg>
+                            <svg style="position:absolute; left:110px; top:110px; width:20px; height:10px; overflow:visible;"><path d="M0,10 Q10,0 20,10" stroke="#27AE60" stroke-width="3" fill="none"/></svg>
+                        </div>
+                    </div>
+                </div>
+
+                <svg class="oven-arch shadow-arch" width="800" height="500" viewBox="0 0 800 500">
+                    <path d="M 0,500 L 50,500 L 50,200 A 350,150 0 0 1 750,200 L 750,500 L 800,500 L 800,0 L 0,0 Z" fill="#3E2723"/>
+                </svg>
+
+                <div class="status-text shadow-text">
+                    <span class="t1">READY...</span>
+                    <span class="t2">FIRE ROASTING...</span>
+                    <span class="t3">ORDER COMPLETED!</span>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsCooking { get; set; }
+}
+
+<style>
+    .animation-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255, 255, 255, 0.85); z-index: 9999; display: flex; justify-content: center; align-items: center; }
+    .cooking-stage { background: rgba(5, 5, 5, 0.9); width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }
+    .action-stage { width: 800px; height: 500px; position: relative; }
+    .oven-bg { background: #100505; border-bottom: 10px solid #3E2723; border-radius: 150px 150px 0 0; position: absolute; left: 50px; right: 50px; top: 50px; bottom: 0; overflow: hidden; }
+    .fire-group { position: absolute; bottom: 0; left: 0; right: 0; opacity: 0; animation: fireFade 4s forwards; }
+    .fire-glow { width: 600px; height: 300px; background: #FF5722; border-radius: 50%; position: absolute; bottom: -50px; left: 50px; filter: blur(80px); animation: firePulse 0.4s infinite alternate; }
+    .fire-pit { position: absolute; bottom: 20px; left: 150px; width: 400px; height: 150px; }
+    .flame { position: absolute; transform-origin: center bottom; }
+    .f1 { left: 100px; top: 20px; width: 60px; height: 120px; animation: scaleF1 0.3s infinite alternate; }
+    .f2 { left: 145px; top: 50px; width: 50px; height: 90px; animation: scaleF2 0.4s infinite alternate; }
+    .f3 { left: 190px; top: 10px; width: 70px; height: 130px; animation: scaleF3 0.2s infinite alternate; }
+    .oven-floor { position: absolute; top: 0; left: 0; }
+    .pizza-canvas { position: absolute; left: 50px; right: 50px; top: 50px; bottom: 0; overflow: hidden; }
+    .peel-group { position: absolute; top: 300px; left: 750px; width: 600px; height: 60px; animation: peelSlide 5.5s forwards; }
+    .peel-handle { width: 400px; height: 15px; background: #8D6E63; border-radius: 5px; position: absolute; right: 0; top: 22px; }
+    .peel-head { position: absolute; left: -20px; top: 0; }
+    .pizza-group { position: absolute; top: 220px; left: 770px; width: 200px; height: 200px; animation: pizzaSlide 5.5s forwards; }
+    .shadow-pizza { filter: drop-shadow(0 5px 10px rgba(0,0,0,0.4)); }
+    .pizza-crust-bottom { width: 195px; height: 195px; background: #8D6E63; border-radius: 50%; position: absolute; top: 2px; left: 2px; }
+    .pizza-crust { width: 190px; height: 190px; background: #E67E22; border: 4px solid #D35400; border-radius: 50%; position: absolute; }
+    .pizza-cheese-base { width: 170px; height: 170px; background: #F1C40F; border-radius: 50%; position: absolute; top: 10px; left: 10px; }
+    .pizza-cheese-top { width: 160px; height: 160px; background: #F39C12; opacity: 0.5; border-radius: 50%; position: absolute; top: 15px; left: 15px; }
+    .pizza-toppings { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+    .pep { width: 30px; height: 30px; background: #C0392B; border-radius: 50%; position: absolute; }
+    .oven-arch { position: absolute; top: 0; left: 0; }
+    .shadow-arch { filter: drop-shadow(0 0 20px black); }
+    .status-text { position: absolute; top: 100px; width: 100%; text-align: center; font-size: 40px; font-weight: 900; color: white; text-shadow: 0 0 10px black; }
+    .status-text span { position: absolute; width: 100%; left: 0; opacity: 0; }
+    .t1 { animation: text1 5.5s forwards; }
+    .t2 { animation: text2 5.5s forwards; }
+    .t3 { animation: text3 5.5s forwards; }
+
+    @@keyframes peelSlide { 0% { transform: translateX(0); } 18% { transform: translateX(-550px); animation-timing-function: cubic-bezier(0.2, 0, 0.2, 1); } 21% { transform: translateX(-550px); } 29% { transform: translateX(0); animation-timing-function: cubic-bezier(0.5, 0, 0.5, 1); } 100% { transform: translateX(0); } }
+    @@keyframes pizzaSlide { 0% { transform: translateX(0); } 18% { transform: translateX(-550px); animation-timing-function: cubic-bezier(0.2, 0, 0.2, 1); } 100% { transform: translateX(-550px); } }
+    @@keyframes fireFade { 0% { opacity: 0; } 27% { opacity: 0; } 36% { opacity: 1; } 100% { opacity: 1; } }
+    @@keyframes scaleF1 { 0% { transform: scaleY(0.8); } 100% { transform: scaleY(1.2); } }
+    @@keyframes scaleF2 { 0% { transform: scaleY(0.9); } 100% { transform: scaleY(1.1); } }
+    @@keyframes scaleF3 { 0% { transform: scaleY(0.7); } 100% { transform: scaleY(1.3); } }
+    @@keyframes firePulse { 0% { opacity: 0.5; } 100% { opacity: 0.9; } }
+    @@keyframes text1 { 0% { opacity: 1; } 27% { opacity: 1; } 28% { opacity: 0; } 100% { opacity: 0; } }
+    @@keyframes text2 { 0% { opacity: 0; } 27% { opacity: 0; } 36% { opacity: 1; } 81% { opacity: 1; } 82% { opacity: 0; } 100% { opacity: 0; } }
+    @@keyframes text3 { 0% { opacity: 0; } 81% { opacity: 0; } 82% { opacity: 1; } 100% { opacity: 1; } }
+</style>

@@ -1,0 +1,9 @@
+﻿@inject NavigationManager Nav
+
+@code {
+    protected override void OnInitialized()
+    {
+        // Instantly bounce the user to the login screen
+        Nav.NavigateTo("/login");
+    }
+}

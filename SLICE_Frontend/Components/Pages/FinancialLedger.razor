@@ -1,0 +1,238 @@
+﻿@page "/finance"
+@inject HttpClient Http
+@inject IJSRuntime JS
+
+<PageTitle>Financial Ledger | S.L.I.C.E.</PageTitle>
+
+<div class="system-background">
+    
+    @* 1. HEADER ROW *@
+    <div class="header-grid">
+        <div class="header-stack">
+            <div class="title-text">Profit & Loss Ledger</div>
+            <div class="subtitle-text">Consolidated Financial Performance & Expense Tracking</div>
+        </div>
+
+        <button class="btn-backup" @onclick="BackupDatabase" title="Create a .bak file of the entire system">
+            <div class="btn-content">
+                <i class="fa fa-database btn-icon"></i>
+                <span>BACKUP DATABASE</span>
+            </div>
+        </button>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="loading-state">
+            <i class="fa fa-spinner fa-spin" style="font-size: 32px; color: #2980B9; margin-bottom: 15px;"></i>
+            <div style="font-weight: 700; color: #2C3E50;">Calculating Financials...</div>
+        </div>
+    }
+    else
+    {
+        @* 2. METRIC CARDS *@
+        <div class="metrics-grid">
+            
+            <div class="metric-card shadow-soft" style="background-color: #27AE60; margin-right: 15px;">
+                <div class="metric-header">
+                    <i class="fa fa-line-chart metric-icon"></i>
+                    <span class="metric-title">TOTAL REVENUE</span>
+                </div>
+                <div class="metric-value">₱ @TotalRevenue.ToString("N2")</div>
+            </div>
+
+            <div class="metric-card shadow-soft" style="background-color: #E74C3C; margin: 0 10px 0 5px;">
+                <div class="metric-header">
+                    <i class="fa fa-shopping-cart metric-icon"></i>
+                    <span class="metric-title">TOTAL EXPENSES</span>
+                </div>
+                <div class="metric-value">₱ @TotalExpenses.ToString("N2")</div>
+            </div>
+
+            <div class="metric-card shadow-soft" style="background-color: #2980B9; margin-left: 10px;">
+                <div class="metric-header">
+                    <i class="fa fa-bank metric-icon"></i>
+                    <span class="metric-title">NET PROFIT</span>
+                </div>
+                <div class="metric-value">₱ @NetProfit.ToString("N2")</div>
+            </div>
+            
+        </div>
+
+        @* 3. WASTE BANNER *@
+        <div class="waste-banner">
+            <i class="fa fa-exclamation-triangle waste-icon"></i>
+            <div class="waste-text-stack">
+                <div class="waste-title">COST OF WASTE & SPOILAGE</div>
+                <div class="waste-subtitle">These losses are already deducted from your Net Profit via Total Expenses.</div>
+            </div>
+            <div class="waste-value">- ₱ @TotalWasteCost.ToString("N2")</div>
+        </div>
+
+        @* 4. DATAGRID *@
+        <div class="datagrid-container shadow-hard">
+            <div class="table-scroll-viewer">
+                <table class="custom-datagrid">
+                    <thead>
+                        <tr>
+                            <th style="width: 120px;">DATE</th>
+                            <th style="width: 100px;">TYPE</th>
+                            <th style="width: 150px;">CATEGORY</th>
+                            <th style="width: auto;">DESCRIPTION</th>
+                            <th style="width: 120px; text-align: right; padding-right: 15px;">AMOUNT</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (transactions != null)
+                        {
+                            @foreach (var item in transactions)
+                            {
+                                <tr>
+                                    <td class="col-date">@item.TransactionDate.ToString("MMM dd, yyyy")</td>
+                                    <td>
+                                        <div class="type-badge">@item.Type</div>
+                                    </td>
+                                    <td class="col-category">@item.Category</td>
+                                    <td class="col-desc">@item.Description</td>
+                                    <td class="col-amount text-end" style="padding-right: 15px;">₱ @item.Amount.ToString("N2")</td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    /* BASE LAYOUT */
+    .system-background { background-color: #FDFBF7; font-family: 'Segoe UI', sans-serif; padding: 30px; height: calc(100vh - 60px); display: flex; flex-direction: column; }
+    .shadow-soft { box-shadow: 0 4px 15px rgba(44, 62, 80, 0.15); }
+    .shadow-hard { box-shadow: 0 4px 20px rgba(189, 195, 199, 0.15); }
+
+    /* HEADER */
+    .header-grid { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
+    .title-text { font-size: 28px; font-weight: 900; color: #2C3E50; line-height: 1.2; }
+    .subtitle-text { font-size: 14px; font-weight: 400; color: #7F8C8D; margin-top: 2px; }
+
+    /* BACKUP BUTTON */
+    .btn-backup { background-color: #2980B9; color: white; border: none; border-radius: 6px; padding: 10px 15px; font-weight: 700; cursor: pointer; transition: 0.2s; outline: none; }
+    .btn-backup:hover { filter: brightness(1.1); transform: translateY(-1px); }
+    .btn-content { display: flex; align-items: center; }
+    .btn-icon { font-size: 14px; color: white; margin-right: 8px; }
+
+    /* METRICS ROW */
+    .metrics-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; margin-bottom: 25px; }
+    .metric-card { padding: 20px 25px; border-radius: 12px; }
+    .metric-header { display: flex; align-items: center; margin-bottom: 5px; }
+    .metric-icon { font-size: 14px; color: white; opacity: 0.8; margin-right: 8px; }
+    .metric-title { font-size: 12px; font-weight: 700; color: white; opacity: 0.9; }
+    .metric-value { font-size: 32px; font-weight: 900; color: white; line-height: 1; }
+
+    /* WASTE BANNER */
+    .waste-banner { background-color: #FDEDEC; border: 1.5px solid #E74C3C; border-radius: 8px; padding: 15px; margin-bottom: 25px; display: flex; align-items: center; }
+    .waste-icon { font-size: 24px; color: #C0392B; margin-right: 15px; }
+    .waste-text-stack { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; }
+    .waste-title { font-size: 12px; font-weight: 900; color: #C0392B; }
+    .waste-subtitle { font-size: 11px; font-weight: 600; color: #E74C3C; margin-top: 2px; }
+    .waste-value { font-size: 20px; font-weight: 900; color: #C0392B; }
+
+    /* DATAGRID */
+    .datagrid-container { background-color: white; border-radius: 12px; padding: 15px; flex-grow: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
+    .table-scroll-viewer { overflow-y: auto; flex-grow: 1; padding-right: 5px; }
+    .table-scroll-viewer::-webkit-scrollbar { width: 6px; }
+    .table-scroll-viewer::-webkit-scrollbar-thumb { background: #BDC3C7; border-radius: 3px; }
+
+    .custom-datagrid { width: 100%; border-collapse: collapse; text-align: left; }
+    .custom-datagrid th { background-color: #F8F9F9; color: #95A5A6; font-size: 11px; font-weight: 700; padding: 10px 15px; border-bottom: 1px solid #EAECEE; position: sticky; top: 0; z-index: 1; }
+    .custom-datagrid tr { height: 45px; transition: 0.1s; }
+    .custom-datagrid td { padding: 0 10px; border-bottom: 1px solid #F4F6F7; vertical-align: middle; }
+
+    .custom-datagrid tbody tr:hover { background-color: #F0F8FF; }
+    .custom-datagrid tbody tr:hover td { color: #2C3E50; }
+
+    .col-date { color: #7F8C8D; font-weight: 600; font-size: 14px; }
+    .col-category { color: #2C3E50; font-weight: 600; font-size: 14px; }
+    .col-desc { color: #2C3E50; font-size: 14px; }
+    .col-amount { color: #2C3E50; font-weight: 900; font-size: 14px; }
+
+    .type-badge { background-color: #F4F6F7; border-radius: 4px; padding: 4px 8px; color: #34495E; font-size: 11px; font-weight: 700; display: inline-block; }
+    .loading-state { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+</style>
+
+@code {
+    private decimal TotalRevenue = 0;
+    private decimal TotalExpenses = 0;
+    private decimal TotalWasteCost = 0;
+    private decimal NetProfit => TotalRevenue - TotalExpenses;
+
+    private List<LedgerTransaction>? transactions;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        try
+        {
+            // 1. Fetch Metrics
+            var metrics = await Http.GetFromJsonAsync<DashboardMetrics>("api/finance/metrics");
+            if (metrics != null)
+            {
+                TotalRevenue = metrics.TotalRevenue;
+                TotalExpenses = metrics.TotalExpenses;
+                TotalWasteCost = metrics.TotalWasteCost;
+            }
+
+            // 2. Fetch Transactions Grid Data
+            transactions = await Http.GetFromJsonAsync<List<LedgerTransaction>>("api/finance/transactions");
+        }
+        catch (Exception ex)
+        {
+            await JS.InvokeVoidAsync("alert", $"Connection Error: {ex.Message}");
+        }
+        isLoading = false;
+    }
+
+    // Triggers the file download using the exact HttpClient Base Address
+    private async Task BackupDatabase()
+    {
+        try
+        {
+            // 1. Grab the exact URL your API is running on
+            string baseUrl = Http.BaseAddress?.ToString() ?? "";
+            
+            // 2. Ensure it doesn't double up on slashes
+            string fullUrl = baseUrl.TrimEnd('/') + "/api/finance/backup";
+
+            // 3. Open that exact link
+            await JS.InvokeVoidAsync("window.open", fullUrl, "_blank");
+        }
+        catch (Exception)
+        {
+            await JS.InvokeVoidAsync("alert", "Could not initiate database backup.");
+        }
+    }
+
+    // --- DTOs ---
+    public class DashboardMetrics
+    {
+        public decimal TotalRevenue { get; set; }
+        public decimal TotalExpenses { get; set; }
+        public decimal TotalWasteCost { get; set; }
+    }
+
+    public class LedgerTransaction
+    {
+        public DateTime TransactionDate { get; set; }
+        public string Type { get; set; } = string.Empty;
+        public string Category { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
+        public string Description { get; set; } = string.Empty;
+    }
+}
