@@ -165,18 +165,16 @@
         </div>
     </div>
 
-    @* ========================================== *@
-    @* MODALS                                     *@
-    @* ========================================== *@
+    @* MODALS *@
 
-    @* 1. DISCOUNT MODAL (Powered by Component) *@
+    @* 1. DISCOUNT MODAL *@
     <ApplyDiscountModal 
         IsVisible="showDiscountModal" 
         IsVisibleChanged="@((bool val) => showDiscountModal = val)" 
         Discounts="AvailableDiscounts" 
         OnDiscountSelected="ApplyDiscount" />
 
-    @* 2. PAYMENT GATEWAY MODAL (Powered by Component) *@
+    @* 2. PAYMENT MODAL *@
     @if (showPaymentModal)
     {
         <PaymentGatewayModal 
@@ -185,7 +183,7 @@
             OnCancel="() => showPaymentModal = false" />
     }
 
-   @* 3. RECEIPT MODAL (Powered by Component) *@
+   @* 3. RECEIPT MODAL *@
     <ReceiptModal 
         IsVisible="showReceiptModal" 
         IsVisibleChanged="@((bool val) => showReceiptModal = val)"
@@ -195,12 +193,15 @@
         GrandTotal="GrandTotal"
         PaymentMethod="@payMethod"
         ReferenceNumber="@GeneratedRefNum"
-        OnClose="CloseReceipt" />
+        OnClose="CloseReceipt"
+        BranchName="@currentBranchName"
+        BranchAddress="@currentBranchAddress"
+        Contact="@currentBranchContact"
+        CashierName="@currentFullUserName" />
 
-    @* 4. VOID MODAL (Fixed component name to match VoidSaleModal.razor) *@
+    @* 4. VOID MODAL *@
     <VoidSaleModal IsVisible="showVoidModal" IsVisibleChanged="@((bool val) => showVoidModal = val)" Transactions="TodaySales" OnVoidConfirmed="ProcessVoid" />
 
-    @* THE SEPARATED ANIMATION COMPONENT! *@
     <CookingAnimation IsCooking="@IsCooking" />
 
 </div>
@@ -344,6 +345,7 @@
     [CascadingParameter]
     private Task<AuthenticationState> AuthStateTask { get; set; } = default!;
 
+    // --- CONTEXT & DATA HOLDERS ---
     private List<ProductDisplayDto> AllProducts = new();
     private List<ProductDisplayDto> FilteredProducts = new();
     private List<SalesCartItemDto> CartItems = new();
@@ -355,7 +357,13 @@
     private bool isLoading = true;
     public bool IsCooking = false;
 
-    // Totals
+    // --- RECEIPT CONTEXT ---
+    private string currentBranchName = "Loading...";
+    private string currentBranchAddress = "";
+    private string currentBranchContact = "";
+    private string currentFullUserName = "";
+
+    // --- TOTALS ---
     private decimal SubTotal => CartItems.Sum(x => x.TotalPrice);
     private decimal DiscountAmount = 0;
     private decimal GrandTotal => SubTotal - DiscountAmount;
@@ -363,6 +371,7 @@
     private DiscountDto? ActiveDiscount;
     private bool HasDiscount => ActiveDiscount != null;
 
+    // --- SEARCH & FILTERS ---
     private string _selectedCategory = "All";
     public string SelectedCategory
     {
@@ -380,15 +389,16 @@
     // --- MODAL STATES ---
     private bool showDiscountModal = false;
     private List<DiscountDto> AvailableDiscounts = new();
-
     private bool showPaymentModal = false;
     private bool showReceiptModal = false;
     private string GeneratedRefNum = "";
     private string payMethod = "";
-
     private bool showVoidModal = false;
     private List<TransactionDto> TodaySales = new();
 
+    // ==========================================
+    // INITIALIZATION
+    // ==========================================
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthStateTask;
@@ -396,12 +406,21 @@
 
         if (user.Identity != null && user.Identity.IsAuthenticated)
         {
+            // 1. Pull Context for UI & Receipts
+            currentFullUserName = user.Identity.Name ?? "Staff Member";
+            currentUserRole = user.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "Clerk";
+
+            currentBranchName = user.FindFirst("BranchName")?.Value ?? "Branch"; 
+            currentBranchAddress = user.FindFirst("BranchAddress")?.Value ?? "";
+            currentBranchContact = user.FindFirst("BranchContact")?.Value ?? "";
+
+            // 2. Parse IDs for Database queries
             int.TryParse(user.FindFirst("BranchID")?.Value, out currentBranchId);
             int.TryParse(user.FindFirst("UserID")?.Value, out currentUserId);
-            currentUserRole = user.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "Clerk";
         }
 
         await LoadMenu();
+        StateHasChanged(); 
     }
 
     private async Task LoadMenu()
@@ -440,7 +459,9 @@
 
     private void SelectCategory(string cat) => SelectedCategory = cat;
 
-    // --- CART LOGIC ---
+    // ==========================================
+    // CART LOGIC
+    // ==========================================
     private void AddToCart(ProductDisplayDto product)
     {
         var existing = CartItems.FirstOrDefault(c => c.ProductID == product.ProductID);
@@ -517,8 +538,9 @@
         StateHasChanged();
     }
 
-    // --- REAL MODAL LOGIC ---
-    
+    // ==========================================
+    // MODAL ACTIONS
+    // ==========================================
     private async Task OpenDiscountDialog()
     {
         if (CartItems.Count == 0)
@@ -527,12 +549,11 @@
             return;
         }
 
-        // Fetch the fresh list
         var result = await Http.GetFromJsonAsync<List<DiscountDto>>($"api/sales/discounts/{currentUserRole}");
         AvailableDiscounts = result ?? new();
 
         showDiscountModal = true;
-        StateHasChanged(); // Force the UI to see the new list before opening the modal
+        StateHasChanged();
     }
 
     private void ApplyDiscount(DiscountDto d)
@@ -578,11 +599,11 @@
 
             if (response.IsSuccessStatusCode)
             {
-                await Task.Delay(5500); // Exact WPF animation wait time!
+                await Task.Delay(5500); 
                 IsCooking = false;
                 
                 showReceiptModal = true; 
-                await LoadMenu(); // Reload inventory limits silently in background
+                await LoadMenu(); 
             }
             else
             {
@@ -601,7 +622,7 @@
     private void CloseReceipt()
     {
         showReceiptModal = false;
-        ClearCart(); // Cart clears ONLY after they print the receipt
+        ClearCart(); 
     }
 
     private async Task OpenVoidWindow()
@@ -614,20 +635,18 @@
     {
         try
         {
-            // Using POST to send the complex payload to your backend. 
-            // (Ensure your backend API accepts this model!)
             var response = await Http.PostAsJsonAsync("api/sales/void", payload);
             
             if (response.IsSuccessStatusCode)
             {
-                await JS.InvokeVoidAsync("alert", "Transaction successfully voided. Inventory and financial ledgers have been updated.");
+                await JS.InvokeVoidAsync("alert", "Transaction successfully voided.");
                 TodaySales = await Http.GetFromJsonAsync<List<TransactionDto>>($"api/sales/today/{currentBranchId}") ?? new();
-                await LoadMenu(); // Refresh menu to show restored inventory
+                await LoadMenu(); 
                 StateHasChanged();
             }
             else
             {
-                await JS.InvokeVoidAsync("alert", $"Failed to void transaction: {await response.Content.ReadAsStringAsync()}");
+                await JS.InvokeVoidAsync("alert", $"Failed to void: {await response.Content.ReadAsStringAsync()}");
             }
         }
         catch (Exception ex)
@@ -636,7 +655,9 @@
         }
     }
 
-    // --- DTOs ---
+    // ==========================================
+    // DTO CLASSES
+    // ==========================================
     public class ProductDisplayDto
     {
         public int ProductID { get; set; }
@@ -703,8 +724,6 @@
         public string DiscountName { get; set; } = "";
         public string ValueType { get; set; } = ""; 
         public decimal DiscountValue { get; set; }
-        
-        // Added these to support your awesome ApplyDiscountModal!
         public string DiscountType { get; set; } = "";
         public string ReferenceID { get; set; } = "";
         public string Reason { get; set; } = "";
@@ -713,31 +732,18 @@
     public class TransactionDto
     {
         public string ReferenceNumber { get; set; } = string.Empty;
-        
-        // Catch all possible date column names
         public System.DateTime? LocalTransactionDate { get; set; }
         public System.DateTime? TransactionDate { get; set; }
-        
-        // Catch all possible product names
         public string ProductName { get; set; } = string.Empty;
         public string ItemName { get; set; } = string.Empty;
-
-        // Catch all possible quantity names
         public int? QuantitySold { get; set; }
         public int? Qty { get; set; }
-
-        // Catch all possible amount names
         public decimal? TotalAmount { get; set; }
         public decimal? GrandTotal { get; set; }
-
-        // Catch all possible method names
         public string PaymentMethod { get; set; } = string.Empty;
         public string Method { get; set; } = string.Empty;
-
         public string Status { get; set; } = string.Empty;
 
-        // --- COMPUTED PROPERTIES FOR THE UI ---
-        // These automatically grab whichever value successfully loaded from the database!
         public System.DateTime DisplayDate => LocalTransactionDate ?? TransactionDate ?? System.DateTime.Now;
         public decimal DisplayAmount => TotalAmount ?? GrandTotal ?? 0m;
         public int DisplayQty => QuantitySold ?? Qty ?? 0;
@@ -745,7 +751,6 @@
         public string DisplayMethod => !string.IsNullOrEmpty(PaymentMethod) ? PaymentMethod : (!string.IsNullOrEmpty(Method) ? Method : "Cash");
     }
 
-    // Added to package the void data cleanly
     public class VoidRequestPayload
     {
         public string ReferenceNumber { get; set; } = "";

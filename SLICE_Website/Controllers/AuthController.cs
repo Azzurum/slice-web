@@ -36,10 +36,14 @@ namespace SLICE_Website.Controllers
         [HttpPost("login")]
         public IActionResult Login([FromBody] LoginRequest req)
         {
+            // Ensure your repository's Login method returns the User 
+            // joined with their Branch details (Name, Address, Contact)
             var user = _userRepo.Login(req.Username, req.Password);
 
             if (user != null)
             {
+                // This 'user' object must have BranchName, BranchAddress, and BranchContact 
+                // populated for the frontend to save them as claims.
                 return Ok(user);
             }
 
@@ -54,19 +58,15 @@ namespace SLICE_Website.Controllers
         {
             try
             {
-                // Use your existing, working Login method which correctly handles password hashing!
                 var user = _userRepo.Login(req.Username, req.Password);
 
-                if (user != null)
+                if (user != null && (user.Role == "Manager" || user.Role == "Super-Admin" || user.Role == "Owner"))
                 {
-                    // Check if the valid user actually has Manager privileges
-                    if (user.Role == "Manager" || user.Role == "Super-Admin" || user.Role == "Owner")
-                    {
-                        return Ok(user.UserID);
-                    }
+                    // Return the WHOLE user object so the system knows 
+                    // which manager (and which branch) is authorizing the void.
+                    return Ok(user);
                 }
 
-                // If login fails, or they don't have the right role, reject them
                 return Unauthorized("Invalid credentials or insufficient permissions.");
             }
             catch (Exception ex)

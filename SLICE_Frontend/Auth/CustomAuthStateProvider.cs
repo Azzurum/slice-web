@@ -15,13 +15,17 @@ namespace SLICE_Frontend.Auth
 
         public void LogIn(AuthUser user)
         {
-            // Fully qualifying the Claim namespace to prevent the BinaryReader error
+            // We use the fully qualified name "System.Security.Claims.Claim" 
+            // to stop the "BinaryReader" conversion error.
             var claims = new[]
             {
-                new System.Security.Claims.Claim(ClaimTypes.Name, user.FullName ?? "User"),
+                new System.Security.Claims.Claim(ClaimTypes.Name, user.FullName ?? user.Username ?? "User"),
                 new System.Security.Claims.Claim(ClaimTypes.Role, user.Role ?? "Guest"),
+                new System.Security.Claims.Claim("UserID", user.UserID.ToString()),
                 new System.Security.Claims.Claim("BranchID", user.BranchID?.ToString() ?? "0"),
-                new System.Security.Claims.Claim("UserID", user.UserID.ToString())
+                new System.Security.Claims.Claim("BranchName", user.BranchName ?? "Unknown Branch"),
+                new System.Security.Claims.Claim("BranchAddress", user.BranchAddress ?? "Address Not Set"),
+                new System.Security.Claims.Claim("BranchContact", user.BranchContact ?? "Contact Not Set")
             };
 
             var identity = new ClaimsIdentity(claims, "CustomAuth");
@@ -37,12 +41,16 @@ namespace SLICE_Frontend.Auth
         }
     }
 
-    // A lightweight frontend version of the User model to catch the API data
+    // UPDATED MODEL: Added the missing fields so the compiler can find them
     public class AuthUser
     {
         public int UserID { get; set; }
+        public string? Username { get; set; }
         public string FullName { get; set; } = string.Empty;
         public string Role { get; set; } = string.Empty;
         public int? BranchID { get; set; }
+        public string? BranchName { get; set; }
+        public string? BranchAddress { get; set; }
+        public string? BranchContact { get; set; }
     }
 }

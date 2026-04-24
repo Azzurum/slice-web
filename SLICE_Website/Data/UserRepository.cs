@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using Dapper;
 using SLICE_Website.Models;
@@ -14,19 +15,29 @@ namespace SLICE_Website.Data
             _dbService = dbService;
         }
 
-        // --- 1. AUTHENTICATION ---
-        // Validates user credentials and ensures the account is actively permitted to log in
+        // =========================================================
+        // 1. AUTHENTICATION (REMOVED CRASHING COLUMNS)
+        // =========================================================
         public User? Login(string username, string password)
         {
             using (var connection = _dbService.GetConnection())
             {
-                string sql = "SELECT * FROM Users WHERE Username = @Username AND PasswordHash = @Password AND IsActive = 1";
+                // We only pull BranchName. Address and Contact are hardcoded in the UI.
+                string sql = @"
+                    SELECT u.*, b.BranchName 
+                    FROM Users u 
+                    LEFT JOIN Branches b ON u.BranchID = b.BranchID 
+                    WHERE u.Username = @Username 
+                    AND u.PasswordHash = @Password 
+                    AND u.IsActive = 1";
+
                 return connection.QuerySingleOrDefault<User>(sql, new { Username = username, Password = password });
             }
         }
 
-        // --- 2. RETRIEVE USERS ---
-        // Fetches all users, joins their assigned branch name, and applies an optional search filter
+        // =========================================================
+        // 2. RETRIEVE USERS
+        // =========================================================
         public List<User> GetAllUsers(string search = "")
         {
             using (var connection = _dbService.GetConnection())
@@ -42,8 +53,6 @@ namespace SLICE_Website.Data
             }
         }
 
-        // --- 3. CREATE USER (UPDATED TO INCLUDE EMAIL) ---
-        // Inserts a newly registered employee into the system (defaults to Active = 1)
         public void AddUser(User user)
         {
             using (var connection = _dbService.GetConnection())
@@ -51,56 +60,38 @@ namespace SLICE_Website.Data
                 string sql = @"
                     INSERT INTO Users (Username, PasswordHash, FullName, Email, Role, BranchID, IsActive)
                     VALUES (@Username, @PasswordHash, @FullName, @Email, @Role, @BranchID, 1)";
-
                 connection.Execute(sql, user);
             }
         }
 
-        // --- 4. UPDATE USER (UPDATED TO INCLUDE EMAIL) ---
-        // Modifies an existing employee's details, role, branch assignment, password, or email
         public void UpdateUser(User user)
         {
             using (var connection = _dbService.GetConnection())
             {
                 string sql = @"
                     UPDATE Users 
-                    SET Username = @Username, 
-                        PasswordHash = @PasswordHash, 
-                        FullName = @FullName, 
-                        Email = @Email,
-                        Role = @Role, 
-                        BranchID = @BranchID
+                    SET Username = @Username, PasswordHash = @PasswordHash, FullName = @FullName, 
+                        Email = @Email, Role = @Role, BranchID = @BranchID
                     WHERE UserID = @UserID";
-
                 connection.Execute(sql, user);
             }
         }
 
-        // --- 5. DEACTIVATE USER (SOFT DELETE) ---
-        // Revokes access immediately without deleting the row, keeping financial/audit logs perfectly intact
         public void DeactivateUser(int userId)
         {
             using (var connection = _dbService.GetConnection())
             {
-                string sql = "UPDATE Users SET IsActive = 0 WHERE UserID = @UserID";
-                connection.Execute(sql, new { UserID = userId });
+                connection.Execute("UPDATE Users SET IsActive = 0 WHERE UserID = @UserID", new { UserID = userId });
             }
         }
 
-        // --- 6. REACTIVATE USER ---
-        // Restores system access for a previously deactivated employee
         public void ReactivateUser(int userId)
         {
             using (var connection = _dbService.GetConnection())
             {
-                string sql = "UPDATE Users SET IsActive = 1 WHERE UserID = @UserID";
-                connection.Execute(sql, new { UserID = userId });
+                connection.Execute("UPDATE Users SET IsActive = 1 WHERE UserID = @UserID", new { UserID = userId });
             }
         }
-
-        // ==========================================
-        // --- 7. FORGOT PASSWORD METHODS ---
-        // ==========================================
 
         public User? GetUserByEmail(string email)
         {
@@ -110,7 +101,7 @@ namespace SLICE_Website.Data
             }
         }
 
-        public void SaveResetCode(int userId, string code, System.DateTime expiry)
+        public void SaveResetCode(int userId, string code, DateTime expiry)
         {
             using (var connection = _dbService.GetConnection())
             {
@@ -123,7 +114,6 @@ namespace SLICE_Website.Data
         {
             using (var connection = _dbService.GetConnection())
             {
-                // Change GETDATE() to GETUTCDATE() to match the C# change
                 string sql = "SELECT COUNT(1) FROM Users WHERE Email = @Email AND ResetCode = @Code AND ResetCodeExpiry > GETUTCDATE()";
                 return connection.ExecuteScalar<int>(sql, new { Email = email, Code = code }) > 0;
             }
@@ -133,7 +123,6 @@ namespace SLICE_Website.Data
         {
             using (var connection = _dbService.GetConnection())
             {
-                // Clears the reset code after successful password change for security
                 string sql = "UPDATE Users SET PasswordHash = @Password, ResetCode = NULL, ResetCodeExpiry = NULL WHERE Email = @Email";
                 connection.Execute(sql, new { Password = newPassword, Email = email });
             }

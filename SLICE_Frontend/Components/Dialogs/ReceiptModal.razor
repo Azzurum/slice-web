@@ -6,25 +6,32 @@
     <div class="modal-overlay" @onclick="Close">
         <div class="receipt-window" @onclick:stopPropagation="true">
             
-            @* SCROLLABLE RECEIPT AREA *@
+            @* SCROLLABLE RECEIPT AREA (Takes up remaining space) *@
             <div class="receipt-scroll">
                 
                 @* THE ACTUAL PRINTABLE RECEIPT PAPER *@
                 <div id="PrintableReceipt" class="receipt-paper">
                     
                     <div class="text-center">
-                        <div class="receipt-title">S.L.I.C.E. ENTERPRISE</div>
-                        <div class="fw-bold mt-1">@BranchName</div>
-                        <div class="text-muted wrap-text mx-auto" style="max-width: 250px;">@BranchAddress</div>
-                        <div class="text-muted" style="font-size: 11px;">Contact: @Contact</div>
-                        <div style="font-size: 10px; margin-top: 5px;">VAT REG TIN: 123-456-789-000</div>
+                        <div style="font-size: 20px; font-weight: bold;">S.L.I.C.E. ENTERPRISE</div>
+                        
+                        @* DYNAMIC BRANCH NAME (From Login) *@
+                        <div style="font-weight: bold; margin-top: 5px;">@(string.IsNullOrWhiteSpace(BranchName) ? "MAIN BRANCH" : BranchName.ToUpper())</div>
+                        
+                        @* FIXED HARDCODED ADDRESS - Matches your original system *@
+                        <div class="wrap-text mx-auto" style="max-width: 250px; color: #555; text-align: center;">Philippines</div>
+                        
+                        @* FIXED HARDCODED CONTACT - Matches your original system *@
+                        <div style="font-size: 11px; color: #555; margin-bottom: 5px;">Contact: 0912-345-6789</div>
+                        
+                        <div style="font-size: 10px;">VAT REG TIN: 123-456-789-000</div>
                     </div>
 
                     <div class="dashed-line">--------------------------------</div>
 
                     <div class="d-flex justify-content-between" style="font-size: 12px;">
-                        <div>
-                            <div>Date: @DateTime.Now.ToString("MM/dd/yyyy hh:mm tt")</div>
+                        <div class="text-start">
+                            <div>Date: @DateTime.Now.ToString("yyyy-MM-dd HH:mm")</div>
                             <div>Cashier: @CashierName</div>
                         </div>
                         <div class="text-end">
@@ -35,58 +42,58 @@
                     <div class="dashed-line">--------------------------------</div>
 
                     @* HEADER ROW *@
-                    <div class="d-flex fw-bold mb-2">
-                        <div style="width: 40px;">QTY</div>
-                        <div class="flex-grow-1">ITEM</div>
-                        <div>AMOUNT</div>
+                    <div class="d-flex" style="margin-bottom: 10px; font-size: 14px;">
+                        <div style="width: 40px; font-weight: bold;">QTY</div>
+                        <div class="flex-grow-1" style="font-weight: bold;">ITEM</div>
+                        <div style="font-weight: bold;">AMOUNT</div>
                     </div>
 
                     @* ITEMS *@
                     @foreach (var item in CartItems)
                     {
-                        <div class="d-flex mb-1">
+                        <div class="d-flex" style="margin: 3px 0; font-size: 14px;">
                             <div style="width: 40px;">@item.Qty</div>
-                            <div class="flex-grow-1 pe-2 wrap-text">@item.DisplayName</div>
-                            <div>@item.TotalPrice.ToString("C2")</div>
+                            <div class="flex-grow-1 wrap-text pe-2 text-start">@item.DisplayName</div>
+                            <div>₱@item.TotalPrice.ToString("N2")</div>
                         </div>
                     }
 
                     <div class="dashed-line">--------------------------------</div>
 
                     @* TOTALS *@
-                    <div class="d-flex justify-content-between mb-1">
-                        <div>SUBTOTAL:</div>
-                        <div>@SubTotal.ToString("C2")</div>
+                    <div class="d-flex justify-content-between" style="margin: 2px 0; font-size: 14px;">
+                        <div style="text-align: left;">SUBTOTAL:</div>
+                        <div style="text-align: right;">₱@SubTotal.ToString("N2")</div>
                     </div>
-                    <div class="d-flex justify-content-between mb-2">
-                        <div>DISCOUNT:</div>
-                        <div>-@DiscountAmount.ToString("C2")</div>
+                    <div class="d-flex justify-content-between" style="margin: 2px 0; font-size: 14px;">
+                        <div style="text-align: left;">DISCOUNT:</div>
+                        <div style="text-align: right;">-₱@DiscountAmount.ToString("N2")</div>
                     </div>
-                    <div class="d-flex justify-content-between mb-2 fw-bold" style="font-size: 16px;">
-                        <div>GRAND TOTAL:</div>
-                        <div>@GrandTotal.ToString("C2")</div>
+                    <div class="d-flex justify-content-between" style="margin: 10px 0;">
+                        <div style="text-align: left; font-size: 16px; font-weight: bold;">GRAND TOTAL:</div>
+                        <div style="text-align: right; font-size: 16px; font-weight: bold;">₱@GrandTotal.ToString("N2")</div>
                     </div>
 
                     <div class="dashed-line">--------------------------------</div>
                     
-                    <div class="d-flex justify-content-between">
-                        <div>PAYMENT METHOD:</div>
-                        <div>@PaymentMethod</div>
+                    <div class="d-flex justify-content-between" style="margin: 2px 0; font-size: 14px;">
+                        <div style="text-align: left;">PAYMENT METHOD:</div>
+                        <div style="text-align: right;">@(PaymentMethod?.ToUpper())</div>
                     </div>
 
                     <div class="dashed-line">--------------------------------</div>
 
-                    <div class="text-center mt-4">
-                        <div class="fw-bold">THANK YOU FOR YOUR BUSINESS!</div>
-                        <div style="font-size: 10px; margin-top: 5px;">Please keep this receipt for</div>
+                    <div class="text-center" style="margin-top: 20px;">
+                        <div style="font-weight: bold; font-size: 14px;">THANK YOU FOR YOUR BUSINESS!</div>
+                        <div style="font-size: 10px; margin-top: 2px;">Please keep this receipt for</div>
                         <div style="font-size: 10px;">returns and exchanges.</div>
                     </div>
 
                 </div>
             </div>
 
-            @* ACTION BUTTONS *@
-            <div class="action-grid">
+            @* ACTION FOOTER *@
+            <div class="action-footer">
                 <button class="btn-print" @onclick="PrintReceipt">PRINT RECEIPT</button>
                 <button class="btn-close-receipt" @onclick="Close">CLOSE</button>
             </div>
@@ -101,59 +108,63 @@
         position: fixed; top: 0; left: 0; right: 0; bottom: 0;
         background: rgba(0, 0, 0, 0.5); z-index: 10000;
         display: flex; justify-content: center; align-items: center;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     }
 
-    /* MATCHES WPF: Height="650" Width="450" Background="#ECF0F1" */
     .receipt-window {
         width: 450px; height: 650px;
         background: #ECF0F1; border-radius: 8px;
-        display: flex; flex-direction: column; padding: 20px;
+        display: flex; flex-direction: column;
         box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        overflow: hidden;
     }
 
-    .receipt-scroll { flex-grow: 1; overflow-y: auto; display: flex; justify-content: center; margin-bottom: 20px; }
+    .receipt-scroll { 
+        flex: 1 1 auto;
+        overflow-y: auto; 
+        display: flex; justify-content: center; align-items: flex-start;
+        padding: 20px; 
+    }
     .receipt-scroll::-webkit-scrollbar { display: none; }
 
-    /* MATCHES WPF: Consolas Font, 350px width, padding 20 */
     .receipt-paper {
         background: white; width: 350px; padding: 20px;
-        font-family: 'Consolas', 'Courier New', monospace; /* Exact Receipt Font */
+        font-family: 'Consolas', 'Courier New', monospace;
         color: black;
         box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         height: fit-content;
     }
 
-    .receipt-title { font-size: 20px; font-weight: bold; }
     .wrap-text { word-wrap: break-word; white-space: pre-wrap; }
     .dashed-line { text-align: center; margin: 10px 0; letter-spacing: 1px; overflow: hidden; white-space: nowrap; }
 
-    /* ACTION BUTTONS */
-    .action-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .action-footer {
+        flex: 0 0 auto;
+        display: flex; 
+        gap: 10px; 
+        padding: 0 20px 20px 20px;
+    }
     
     .btn-print {
+        flex: 1;
         background: #2C3E50; color: white; font-weight: bold; height: 45px;
         border: none; border-radius: 4px; cursor: pointer; transition: 0.2s; outline: none;
     }
     .btn-print:hover { opacity: 0.9; }
 
     .btn-close-receipt {
+        flex: 1;
         background: #95A5A6; color: white; font-weight: bold; height: 45px;
         border: none; border-radius: 4px; cursor: pointer; transition: 0.2s; outline: none;
     }
     .btn-close-receipt:hover { opacity: 0.9; }
 
-    /* ========================================== */
-    /* CSS PRINT LOGIC - TURNS THIS INTO A REAL POS PRINTER */
-    /* ========================================== */
     @@media print {
-        body * { visibility: hidden; } /* Hide the whole website */
-        #PrintableReceipt, #PrintableReceipt * { visibility: visible; } /* Show ONLY the receipt paper */
+        body * { visibility: hidden; } 
+        #PrintableReceipt, #PrintableReceipt * { visibility: visible; } 
         #PrintableReceipt { 
-            position: absolute; 
-            left: 0; top: 0; 
-            width: 80mm; /* Standard thermal printer width */
-            box-shadow: none; 
-            margin: 0; padding: 0;
+            position: absolute; left: 0; top: 0; 
+            width: 80mm; box-shadow: none; margin: 0; padding: 0;
         }
     }
 </style>
@@ -163,7 +174,6 @@
     [Parameter] public EventCallback<bool> IsVisibleChanged { get; set; }
     [Parameter] public EventCallback OnClose { get; set; }
 
-    // Receipt Data
     [Parameter] public List<POS.SalesCartItemDto> CartItems { get; set; } = new();
     [Parameter] public decimal SubTotal { get; set; }
     [Parameter] public decimal DiscountAmount { get; set; }
@@ -171,15 +181,15 @@
     [Parameter] public string PaymentMethod { get; set; } = "";
     [Parameter] public string ReferenceNumber { get; set; } = "";
     
-    // Config Data
-    [Parameter] public string BranchName { get; set; } = "Main Branch";
-    [Parameter] public string BranchAddress { get; set; } = "123 Business Road";
-    [Parameter] public string Contact { get; set; } = "000-0000";
-    [Parameter] public string CashierName { get; set; } = "Store Staff";
+    // We keep these Parameters so POS.razor doesn't throw errors,
+    // even though we are typing the text directly into the HTML above.
+    [Parameter] public string BranchName { get; set; } = "";
+    [Parameter] public string BranchAddress { get; set; } = "";
+    [Parameter] public string Contact { get; set; } = "";
+    [Parameter] public string CashierName { get; set; } = "";
 
     private async Task PrintReceipt()
     {
-        // Triggers the browser's native print dialog
         await JS.InvokeVoidAsync("window.print");
     }
 
