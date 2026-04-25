@@ -142,8 +142,9 @@ namespace SLICE_Website.Controllers
             var user = _userRepo.GetUserByEmail(request.Email);
             if (user == null) return BadRequest("User not found.");
 
-            // 3. Update the password
-            _userRepo.UpdatePassword(request.Email, request.NewPassword);
+            // 3. HASH THE NEW PASSWORD before updating the database
+            string hashedNewPassword = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+            _userRepo.UpdatePassword(request.Email, hashedNewPassword);
 
             // 4. Log to Audit Trail
             _auditRepo.LogAction(user.UserID, "SECURITY", "User reset their password via email verification.");

@@ -22,16 +22,22 @@ namespace SLICE_Website.Data
         {
             using (var connection = _dbService.GetConnection())
             {
-                // We only pull BranchName. Address and Contact are hardcoded in the UI.
+                // 1. ONLY search by Username. Do NOT check the password in SQL.
                 string sql = @"
                     SELECT u.*, b.BranchName 
                     FROM Users u 
                     LEFT JOIN Branches b ON u.BranchID = b.BranchID 
-                    WHERE u.Username = @Username 
-                    AND u.PasswordHash = @Password 
-                    AND u.IsActive = 1";
+                    WHERE u.Username = @Username AND u.IsActive = 1";
 
-                return connection.QuerySingleOrDefault<User>(sql, new { Username = username, Password = password });
+                var user = connection.QuerySingleOrDefault<User>(sql, new { Username = username });
+
+                // 2. Verify the plain-text password against the stored BCrypt hash
+                if (user != null && BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
+                {
+                    return user; // Password is correct!
+                }
+
+                return null; // Username not found OR Password incorrect
             }
         }
 

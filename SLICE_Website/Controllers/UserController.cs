@@ -38,10 +38,16 @@ namespace SLICE_Website.Controllers
         {
             try
             {
+                // HASH THE PASSWORD BEFORE SAVING!
+                user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(user.PasswordHash);
+
                 _repo.AddUser(user);
                 return Ok(new { Message = "User added successfully." });
             }
-            catch (System.Exception ex) { return StatusCode(500, "Database Error: " + ex.Message); }
+            catch (System.Exception ex)
+            {
+                return StatusCode(500, "Database Error: " + ex.Message);
+            }
         }
 
         // --- 3. EDIT USER ---
@@ -51,10 +57,22 @@ namespace SLICE_Website.Controllers
             try
             {
                 user.UserID = id;
+
+                // SECURITY FIX: Hash the password ONLY if it is a new plain-text password.
+                // If it doesn't start with "$2", it is plain text. 
+                // If it does start with "$2", it's the old hash being passed back, so we leave it alone.
+                if (!string.IsNullOrWhiteSpace(user.PasswordHash) && !user.PasswordHash.StartsWith("$2"))
+                {
+                    user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(user.PasswordHash);
+                }
+
                 _repo.UpdateUser(user);
                 return Ok(new { Message = "User updated successfully." });
             }
-            catch (System.Exception ex) { return StatusCode(500, "Database Error: " + ex.Message); }
+            catch (System.Exception ex)
+            {
+                return StatusCode(500, "Database Error: " + ex.Message);
+            }
         }
 
         // --- 4. DEACTIVATE USER ---
