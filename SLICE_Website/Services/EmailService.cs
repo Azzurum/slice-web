@@ -1,13 +1,22 @@
 ﻿using System;
 using System.Net;
 using System.Net.Mail;
+using Microsoft.Extensions.Configuration; // Required to read from appsettings.json
 
 namespace SLICE_Website.Services
 {
     public class EmailService
     {
-        private readonly string _systemEmail = "slice.automated@gmail.com";
-        private readonly string _appPassword = "sbwzycmywldszfof";
+        private readonly string _systemEmail;
+        private readonly string _appPassword;
+
+        // In ASP.NET Core, the framework automatically passes the configuration in here
+        public EmailService(IConfiguration config)
+        {
+            // Read from the "EmailSettings" section we just added to appsettings.json
+            _systemEmail = config["EmailSettings:SystemEmail"];
+            _appPassword = config["EmailSettings:AppPassword"];
+        }
 
         public bool SendPasswordResetEmail(string targetEmail, string resetCode)
         {
@@ -95,7 +104,7 @@ namespace SLICE_Website.Services
                     From = new MailAddress(_systemEmail, "S.L.I.C.E. System Security"),
                     Subject = $"Verification Code: {resetCode} - S.L.I.C.E. Account Recovery",
                     Body = emailBody,
-                    IsBodyHtml = true, // This tells Gmail to render the HTML
+                    IsBodyHtml = true,
                 };
 
                 mailMessage.To.Add(targetEmail);
@@ -103,8 +112,10 @@ namespace SLICE_Website.Services
                 smtpClient.Send(mailMessage);
                 return true;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                // In Web APIs, we use Console.WriteLine instead of MessageBox
+                Console.WriteLine("Email Send Error: " + ex.Message);
                 return false;
             }
         }
